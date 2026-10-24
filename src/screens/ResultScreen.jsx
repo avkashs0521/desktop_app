@@ -2,11 +2,13 @@
 
 /**
  * Result and completion screen.
- * Displays submission status, termination reasons, answered question totals, and reset action.
+ * Displays submission status, termination reasons, score, answered totals, and reset action.
  */
 export default function ResultScreen({ state, onReset }) {
   const isTerminated = state.phase === 'terminated';
-  const answeredCount = state.result?.answeredCount ?? 0;
+  const result = state.result || {};
+  const { answeredCount = 0, correctCount, totalCount, scorePercent } = result;
+  const hasScore = typeof correctCount === 'number' && typeof totalCount === 'number';
   const reason = state.submitReason || 'manual';
 
   const reasonLabels = {
@@ -20,6 +22,10 @@ export default function ResultScreen({ state, onReset }) {
   const statusDescription = isTerminated
     ? 'This examination session was halted due to a security violation or administrator action.'
     : 'Your exam answers have been securely logged in the main process.';
+
+  // Determine score colour class
+  const scoreClass =
+    !hasScore ? '' : scorePercent >= 75 ? 'score--pass' : scorePercent >= 50 ? 'score--warn' : 'score--fail';
 
   return (
     <div className="screen-container">
@@ -45,8 +51,19 @@ export default function ResultScreen({ state, onReset }) {
 
           <div className="stat-card">
             <span className="stat-label">Answers Logged</span>
-            <span className="stat-value stat-number">{answeredCount}</span>
+            <span className="stat-value stat-number">{answeredCount}{hasScore ? ` / ${totalCount}` : ''}</span>
           </div>
+
+          {/* Score card — only shown when grading data is available */}
+          {hasScore && (
+            <div className={`stat-card score-card ${scoreClass}`}>
+              <span className="stat-label">Score</span>
+              <span className="stat-value stat-number score-number">
+                {correctCount} / {totalCount}
+              </span>
+              <span className="stat-sub">{scorePercent}%</span>
+            </div>
+          )}
         </div>
 
         <div className="result-actions">

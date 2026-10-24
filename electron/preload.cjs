@@ -19,6 +19,7 @@ const CHANNELS = Object.freeze({
   EXAM_COMMAND: 'exam:command',
   EXAM_STATE_CHANGED: 'exam:state-changed',
   EXAM_TICK: 'exam:tick',
+  EXAM_WARNING: 'exam:warning',
 
   // Permissions domain
   PERMISSIONS_CAMERA_STATUS: 'permissions:camera-status',
@@ -76,6 +77,7 @@ contextBridge.exposeInMainWorld('argus', {
     send: (type, payload) => invoke(CHANNELS.EXAM_COMMAND, { type, payload }),
     onState: (callback) => subscribe(CHANNELS.EXAM_STATE_CHANGED, callback),
     onTick: (callback) => subscribe(CHANNELS.EXAM_TICK, callback),
+    onWarning: (callback) => subscribe(CHANNELS.EXAM_WARNING, callback),
   },
   permissions: {
     cameraStatus: () => invoke(CHANNELS.PERMISSIONS_CAMERA_STATUS),

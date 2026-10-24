@@ -1,7 +1,8 @@
-// electron/services/examTimer.cjs - Drift-free wall-clock exam countdown timer
+// electron/services/examTimer.cjs - Drift-free wall-clock exam countdown timer with warning events
 
 const { sendToRenderer } = require('../window.cjs');
 const { CHANNELS } = require('../ipc/channels.cjs');
+const { config } = require('../core/config.cjs');
 
 /**
  * Starts the countdown timer against a fixed wall-clock end timestamp.
@@ -19,11 +20,24 @@ const { CHANNELS } = require('../ipc/channels.cjs');
  * @param {Function} [dispatchTimeUp] - Optional callback to trigger TIME_UP command.
  */
 function start(endsAt, scope, dispatchTimeUp) {
+  // Track which warning thresholds have already been fired so each fires exactly once
+  const warningMinutes = Array.isArray(config.warningMinutes) ? [...config.warningMinutes] : [];
+  const firedWarnings = new Set();
+
   const checkTick = () => {
     const remainingMs = Math.max(0, endsAt - Date.now());
 
-    // Push tick to renderer
+    // Push tick to renderer for countdown display
     sendToRenderer(CHANNELS.EXAM_TICK, { remainingMs });
+
+    // Check each warning threshold; fire it exactly once when the remaining time crosses below it
+    for (const minutesLeft of warningMinutes) {
+      const thresholdMs = minutesLeft * 60 * 1000;
+      if (!firedWarnings.has(minutesLeft) && remainingMs <= thresholdMs && remainingMs > 0) {
+        firedWarnings.add(minutesLeft);
+        sendToRenderer(CHANNELS.EXAM_WARNING, { minutesLeft });
+      }
+    }
 
     if (remainingMs === 0) {
       if (typeof dispatchTimeUp === 'function') {

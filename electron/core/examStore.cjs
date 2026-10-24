@@ -5,6 +5,21 @@ const { EventEmitter } = require('events');
 const { config } = require('./config.cjs');
 const { createScope } = require('./lifecycle.cjs');
 const examTimer = require('../services/examTimer.cjs');
+const allQuestions = require('../data/questions.json');
+
+/**
+ * Fisher-Yates shuffle — returns a NEW shuffled array without mutating the original.
+ * @param {Array} array
+ * @returns {Array}
+ */
+function shuffleArray(array) {
+  const arr = [...array];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
 
 /**
  * Valid exam phases.
@@ -77,6 +92,9 @@ class ExamStore extends EventEmitter {
    * @private
    */
   _createInitialState(existingCandidate = { name: '', rollNo: '' }) {
+    // Shuffle questions per session if the config flag is set; otherwise preserve original order
+    const questions = config.shuffleQuestions ? shuffleArray(allQuestions) : [...allQuestions];
+
     return {
       sessionId: crypto.randomUUID(),
       phase: PHASES.WELCOME,
@@ -87,12 +105,13 @@ class ExamStore extends EventEmitter {
       endsAt: null,
       submittedAt: null,
       submitReason: null,
+      questions,          // Array of { id, text, options, answer } — shuffled per session
       answers: {},
       review: [],
       violations: [],
       snapshotCount: 0,
       checks: { camera: false },
-      result: null, // Placeholder until commit 9 ({ answeredCount })
+      result: null,
     };
   }
 
@@ -212,9 +231,7 @@ class ExamStore extends EventEmitter {
         this.state.submittedAt = Date.now();
         this.state.submitReason = 'manual';
         this.state.phase = PHASES.SUBMITTED;
-        this.state.result = {
-          answeredCount: Object.keys(this.state.answers).length,
-        };
+        this.state.result = this._calculateResult();
         break;
       }
 
@@ -222,9 +239,7 @@ class ExamStore extends EventEmitter {
         this.state.submittedAt = Date.now();
         this.state.submitReason = 'time_up';
         this.state.phase = PHASES.SUBMITTED;
-        this.state.result = {
-          answeredCount: Object.keys(this.state.answers).length,
-        };
+        this.state.result = this._calculateResult();
         break;
       }
 
@@ -232,9 +247,7 @@ class ExamStore extends EventEmitter {
         this.state.submittedAt = Date.now();
         this.state.submitReason = payload?.reason || 'terminated';
         this.state.phase = PHASES.TERMINATED;
-        this.state.result = {
-          answeredCount: Object.keys(this.state.answers).length,
-        };
+        this.state.result = this._calculateResult();
         break;
       }
 
@@ -312,6 +325,27 @@ class ExamStore extends EventEmitter {
         throw new ExamError('VALIDATION', "REPORT_CHECK requires { name: 'camera', ok: boolean }");
       }
     }
+  }
+
+  /**
+   * Grades the current answers against the correct answers in the question bank.
+   * @private
+   * @returns {{ answeredCount: number, correctCount: number, totalCount: number, scorePercent: number }}
+   */
+  _calculateResult() {
+    const questions = this.state.questions || [];
+    const answers = this.state.answers || {};
+    const answeredCount = Object.keys(answers).length;
+
+    // Count questions where the candidate's selected option matches the stored answer index
+    const correctCount = questions.reduce((count, q) => {
+      return answers[q.id] === q.answer ? count + 1 : count;
+    }, 0);
+
+    const totalCount = questions.length;
+    const scorePercent = totalCount > 0 ? Math.round((correctCount / totalCount) * 100) : 0;
+
+    return { answeredCount, correctCount, totalCount, scorePercent };
   }
 }
 

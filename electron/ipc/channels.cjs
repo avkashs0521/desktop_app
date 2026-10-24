@@ -14,7 +14,8 @@ const CHANNELS = Object.freeze({
   EXAM_GET_STATE: 'exam:get-state', // invoke → public state
   EXAM_COMMAND: 'exam:command', // invoke { type, payload } → public state
   EXAM_STATE_CHANGED: 'exam:state-changed', // main → renderer push: public state
-  EXAM_TICK: 'exam:tick', // main → renderer push: { remainingMs: number }
+  EXAM_TICK: 'exam:tick',    // main → renderer push: { remainingMs: number }
+  EXAM_WARNING: 'exam:warning', // main → renderer push: { minutesLeft: number }
 
   // Permissions domain
   PERMISSIONS_CAMERA_STATUS: 'permissions:camera-status', // invoke → { status: string }

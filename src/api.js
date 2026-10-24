@@ -58,6 +58,12 @@ export const api = {
       }
       return window.argus.exam.onTick(callback);
     },
+    onWarning: (callback) => {
+      if (!isElectron) {
+        return () => {};
+      }
+      return window.argus.exam.onWarning(callback);
+    },
   },
   permissions: {
     cameraStatus: () => (isElectron ? unwrap(window.argus.permissions.cameraStatus()) : ensureDesktop()),

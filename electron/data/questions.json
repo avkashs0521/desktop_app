@@ -1,0 +1,167 @@
+[
+  {
+    "id": "q01",
+    "text": "Which of the following is the correct way to create a BrowserWindow in Electron's main process?",
+    "options": [
+      "new BrowserWindow({ width: 800, height: 600 })",
+      "window.open('index.html', 800, 600)",
+      "electron.createWindow({ size: [800, 600] })",
+      "app.createBrowserWindow(800, 600)"
+    ],
+    "answer": 0
+  },
+  {
+    "id": "q02",
+    "text": "What is the purpose of `contextBridge.exposeInMainWorld()` in Electron's preload script?",
+    "options": [
+      "To load the main HTML file into the BrowserWindow",
+      "To safely expose a limited API from the preload to the renderer without leaking Node.js globals",
+      "To create a new Node.js process for background tasks",
+      "To register IPC handlers on the main process"
+    ],
+    "answer": 1
+  },
+  {
+    "id": "q03",
+    "text": "In React 19, which hook is used to subscribe to a side-effect and clean it up when a component unmounts?",
+    "options": [
+      "useState",
+      "useContext",
+      "useEffect",
+      "useReducer"
+    ],
+    "answer": 2
+  },
+  {
+    "id": "q04",
+    "text": "Why does Argus set `nodeIntegration: false` in BrowserWindow's webPreferences?",
+    "options": [
+      "To reduce memory usage in the renderer process",
+      "To prevent the webpage from requiring built-in Node.js modules like 'fs' or 'child_process'",
+      "To enable ES module imports in the renderer",
+      "To disable the Chromium network stack"
+    ],
+    "answer": 1
+  },
+  {
+    "id": "q05",
+    "text": "Which CSS property makes a flex container's children wrap onto a new row when there is not enough horizontal space?",
+    "options": [
+      "flex-direction: column",
+      "align-items: flex-start",
+      "flex-wrap: wrap",
+      "justify-content: space-between"
+    ],
+    "answer": 2
+  },
+  {
+    "id": "q06",
+    "text": "What does `ipcMain.handle()` return to the renderer when used with `ipcRenderer.invoke()`?",
+    "options": [
+      "A Node.js EventEmitter object",
+      "A resolved Promise containing the handler's return value",
+      "An IPC event object with sender metadata",
+      "A Buffer of serialized JSON bytes"
+    ],
+    "answer": 1
+  },
+  {
+    "id": "q07",
+    "text": "In Vite, what is the purpose of setting `base: './'` in `vite.config.js` for an Electron app?",
+    "options": [
+      "It enables TypeScript compilation",
+      "It forces Vite to use absolute file paths in the build output",
+      "It ensures asset URLs in the built HTML are relative so they resolve correctly when loaded from `file://`",
+      "It activates Vite's static server mode"
+    ],
+    "answer": 2
+  },
+  {
+    "id": "q08",
+    "text": "Which of the following correctly describes the Electron process architecture?",
+    "options": [
+      "A single process hosts both UI rendering and Node.js API access",
+      "The renderer process has direct access to all Node.js modules when sandbox is enabled",
+      "The main process runs in Node.js and communicates with renderer processes via IPC",
+      "The preload script runs in a third separate OS process"
+    ],
+    "answer": 2
+  },
+  {
+    "id": "q09",
+    "text": "What does `Object.freeze()` do in JavaScript?",
+    "options": [
+      "Converts an object to a JSON string",
+      "Prevents new properties from being added and existing properties from being modified",
+      "Creates a shallow copy of an object",
+      "Locks the object's prototype chain"
+    ],
+    "answer": 1
+  },
+  {
+    "id": "q10",
+    "text": "In Argus's drift-free timer, why is `remainingMs = Math.max(0, endsAt - Date.now())` preferred over decrementing a counter?",
+    "options": [
+      "It avoids using the JavaScript `Date` API which is inaccurate",
+      "It automatically pauses when the window is hidden",
+      "It anchors time calculation to wall-clock so CPU throttling and pauses don't cause drift",
+      "It prevents the timer from firing more than once per second"
+    ],
+    "answer": 2
+  },
+  {
+    "id": "q11",
+    "text": "Which React concept allows state and logic to be reused across multiple components without modifying their structure?",
+    "options": [
+      "Higher-Order Components (HOC)",
+      "Custom Hooks",
+      "React.memo",
+      "Context API"
+    ],
+    "answer": 1
+  },
+  {
+    "id": "q12",
+    "text": "What is the role of `package.json`'s `\"main\"` field in an Electron project?",
+    "options": [
+      "It specifies the entry HTML file for the renderer",
+      "It defines the npm start script command",
+      "It tells Electron which JavaScript file to execute as the main process entry point",
+      "It declares the Vite bundler configuration file"
+    ],
+    "answer": 2
+  },
+  {
+    "id": "q13",
+    "text": "Which HTTP header prevents a web page from loading resources from external origins in a strict Content Security Policy?",
+    "options": [
+      "X-Frame-Options: DENY",
+      "default-src 'self'",
+      "Strict-Transport-Security: max-age=31536000",
+      "X-Content-Type-Options: nosniff"
+    ],
+    "answer": 1
+  },
+  {
+    "id": "q14",
+    "text": "In ES modules (ESM), which syntax is used to expose a function for use in other modules?",
+    "options": [
+      "module.exports = { myFunction }",
+      "global.myFunction = myFunction",
+      "export function myFunction() {}",
+      "require('./myFunction')"
+    ],
+    "answer": 2
+  },
+  {
+    "id": "q15",
+    "text": "What is the primary benefit of using a serialized Promise queue (promise chain) for state machine commands in Argus?",
+    "options": [
+      "It allows multiple commands to run in parallel for better performance",
+      "It ensures commands execute strictly one at a time, preventing race conditions and state corruption",
+      "It retries failed commands automatically up to three times",
+      "It caches command results in localStorage for offline access"
+    ],
+    "answer": 1
+  }
+]

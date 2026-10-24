@@ -115,7 +115,11 @@ export default function App() {
             durationMs={state.durationMs}
             endsAt={state.endsAt}
             candidate={state.candidate}
+            questions={state.questions || []}
+            answers={state.answers || {}}
+            review={state.review || []}
             onSubmit={() => send('SUBMIT_EXAM')}
+            send={send}
             error={error?.message}
           />
         )}

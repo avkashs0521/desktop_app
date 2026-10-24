@@ -259,3 +259,13 @@ Calls failing this validation are rejected immediately with error code `'FORBIDD
   - Built `src/hooks/useCamera.js` with track disconnection listeners and friendly error translation.
   - Maintained single persistent `<video>` element across `setup` and `in_progress` screens in `src/App.jsx`.
   - Enhanced `SetupScreen` with system checks card, camera status pill, settings deep link, and 320x240 live preview.
+
+- **Commit 5: feat(exam): questions, shuffle, warning dialogs, and answer grading**
+  - Added 15-question MCQ bank in `electron/data/questions.json` covering Electron, React, Vite, and JavaScript.
+  - Implemented Fisher-Yates shuffle in `examStore.cjs` — applied per-session when `shuffleQuestions: true` in config.
+  - Extended `examTimer.cjs` to push `exam:warning` IPC events exactly once per threshold from `config.warningMinutes`.
+  - Added `_calculateResult()` to `ExamStore` — grades `answers` against question bank and returns `{ correctCount, totalCount, scorePercent }`.
+  - Exposed `exam.onWarning` subscription in `electron/preload.cjs` and `src/api.js`.
+  - Built `src/components/WarningBanner.jsx` — dismissible, colour-coded alert (caution/urgent) with auto-dismiss and flash animation.
+  - Rebuilt `src/screens/ExamScreen.jsx` with full Q&A UI: sidebar question grid navigator, option radio cards, review flag, Prev/Next nav, submit confirmation modal, and low-time visual cues.
+  - Updated `src/screens/ResultScreen.jsx` to display score card with colour-coded pass/warn/fail styling.
