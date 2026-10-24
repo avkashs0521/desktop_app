@@ -15,6 +15,11 @@ const CHANNELS = Object.freeze({
   EXAM_COMMAND: 'exam:command', // invoke { type, payload } → public state
   EXAM_STATE_CHANGED: 'exam:state-changed', // main → renderer push: public state
   EXAM_TICK: 'exam:tick', // main → renderer push: { remainingMs: number }
+
+  // Permissions domain
+  PERMISSIONS_CAMERA_STATUS: 'permissions:camera-status', // invoke → { status: string }
+  PERMISSIONS_REQUEST_CAMERA: 'permissions:request-camera', // invoke → { status: string }
+  PERMISSIONS_OPEN_CAMERA_SETTINGS: 'permissions:open-camera-settings', // invoke → void
 });
 
 module.exports = { CHANNELS };

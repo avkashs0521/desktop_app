@@ -2,6 +2,7 @@
 const { BrowserWindow, app } = require('electron');
 const path = require('path');
 const { CHANNELS } = require('./ipc/channels.cjs');
+const { isTrustedUrl } = require('./core/trust.cjs');
 
 // Module-level reference to the active window for push messaging
 let activeWindow = null;
@@ -69,12 +70,7 @@ function createMainWindow() {
 
   // Security navigation guard: prevent navigating away from application content
   mainWindow.webContents.on('will-navigate', (event, navigationUrl) => {
-    const devUrl = process.env.ARGUS_DEV_URL;
-    const isAllowed = devUrl
-      ? navigationUrl.startsWith(devUrl)
-      : navigationUrl.startsWith('file://');
-
-    if (!isAllowed) {
+    if (!isTrustedUrl(navigationUrl)) {
       event.preventDefault();
     }
   });

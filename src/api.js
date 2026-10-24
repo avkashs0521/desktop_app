@@ -59,4 +59,9 @@ export const api = {
       return window.argus.exam.onTick(callback);
     },
   },
+  permissions: {
+    cameraStatus: () => (isElectron ? unwrap(window.argus.permissions.cameraStatus()) : ensureDesktop()),
+    requestCamera: () => (isElectron ? unwrap(window.argus.permissions.requestCamera()) : ensureDesktop()),
+    openCameraSettings: () => (isElectron ? unwrap(window.argus.permissions.openCameraSettings()) : ensureDesktop()),
+  },
 };

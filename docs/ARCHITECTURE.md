@@ -33,14 +33,16 @@ argus/
 │   ├── core/
 │   │   ├── config.cjs             # Immutable exam config loader
 │   │   ├── examStore.cjs          # State machine, command queue, and transitions
-│   │   └── lifecycle.cjs          # Resource scope and deterministic cleanup
+│   │   ├── lifecycle.cjs          # Resource scope and deterministic cleanup
+│   │   └── trust.cjs              # Shared origin and URL trust verification
 │   ├── data/
 │   │   └── exam.config.json       # Exam parameters and proctoring thresholds
 │   ├── ipc/
 │   │   ├── channels.cjs           # Single source of truth for IPC channel strings
 │   │   └── register.cjs           # IPC handler registration & sender validation
 │   ├── services/
-│   │   └── examTimer.cjs          # Drift-free wall-clock countdown timer
+│   │   ├── examTimer.cjs          # Drift-free wall-clock countdown timer
+│   │   └── permissions.cjs        # macOS TCC & Chromium session permission handlers
 │   ├── main.cjs                   # App lifecycle, scope disposal, and entry point
 │   ├── window.cjs                 # BrowserWindow configuration, security guards & push messaging
 │   └── preload.cjs                # Context bridge with explicit channel allowlist
@@ -49,16 +51,17 @@ argus/
 │   ├── components/
 │   │   └── TitleBar.jsx           # Custom frameless title bar & window controls
 │   ├── hooks/
+│   │   ├── useCamera.js           # Webcam media stream and readiness hook
 │   │   ├── useExamState.js        # Exam state subscription and dispatch hook
 │   │   └── useRemainingTime.js    # Timer tick subscription hook
 │   ├── screens/
 │   │   ├── WelcomeScreen.jsx      # Candidate registration and input validation
 │   │   ├── SetupScreen.jsx        # Pre-flight checklist & candidate verification
-│   │   ├── ExamScreen.jsx         # Live exam screen with countdown timer
+│   │   ├── ExamScreen.jsx         # Live exam screen with countdown timer & proctor view
 │   │   └── ResultScreen.jsx       # Final submission & termination summary
 │   ├── utils/
 │   │   └── formatTime.js          # Millisecond-to-duration time formatter
-│   ├── App.jsx                    # Phase-driven screen router
+│   ├── App.jsx                    # Phase router and persistent proctor video host
 │   ├── main.jsx                   # React DOM mounting & entry point
 │   └── styles/
 │       └── app.css                # CSS design tokens, typography, and theme
@@ -79,7 +82,7 @@ Every commit in this project adheres to the following principles:
 1. **CommonJS for Electron**: All Electron files reside in `electron/` and use the `.cjs` extension with CommonJS `require()`.
 2. **Strict Renderer Boundary**: The renderer process (`src/`) must never import `electron`, Node built-in modules (`fs`, `path`, `child_process`), or any native modules.
 3. **Controlled OS Access**: All OS access, native calls, and Electron IPC communications must flow through `window.argus` and be consumed via `src/api.js`.
-4. **IPC Channel Naming Standard**: IPC channel names follow the structured `"domain:action"` format (e.g., `"app:get-info"`, `"exam:command"`).
+4. **IPC Channel Naming Standard**: IPC channel names follow the structured `"domain:action"` format (e.g., `"app:get-info"`, `"exam:command"`, `"permissions:request-camera"`).
 5. **Main Process State Retention**: Any state or session data that must survive renderer navigation or window reloads must reside in the Main Process.
 6. **Deterministic Resource Cleanup**: All intervals, timeouts, and observers must be registered under a `createScope()` lifecycle container so they are destroyed deterministically upon phase changes or application quit.
 
@@ -93,7 +96,7 @@ The application parameters are defined in `electron/data/exam.config.json` and c
 |---|---|---|---|
 | `title` | `string` | Commit 3 | Exam title displayed on Welcome, Setup, and Exam screens |
 | `durationMinutes` | `number` | Commit 3 | Overall exam time allocated for the wall-clock countdown |
-| `shuffleQuestions` | `boolean` | Commit 4 | Randomizes question presentation order per candidate |
+| `shuffleQuestions` | `boolean` | Commit 5 | Randomizes question presentation order per candidate |
 | `warningMinutes` | `number[]` | Commit 5 | Thresholds for low-time warning dialogs and visual alerts |
 | `maxViolations` | `number` | Commit 6 | Maximum security strikes allowed before auto-termination |
 | `blockedApps` | `string[]` | Commit 7 | Blacklisted process names monitored on macOS |
@@ -110,8 +113,10 @@ The application parameters are defined in `electron/data/exam.config.json` and c
 stateDiagram-v2
     [*] --> welcome
     welcome --> setup: REGISTER_CANDIDATE
-    setup --> in_progress: START_EXAM
+    setup --> setup: REPORT_CHECK
+    setup --> in_progress: START_EXAM (requires checks.camera)
     setup --> welcome: RESET
+    in_progress --> in_progress: REPORT_CHECK
     in_progress --> in_progress: SAVE_ANSWER
     in_progress --> in_progress: TOGGLE_REVIEW
     in_progress --> submitted: SUBMIT_EXAM (manual)
@@ -126,7 +131,8 @@ stateDiagram-v2
 | Command | Allowed Phases | Authorized Source | Payload Schema | Description |
 |---|---|---|---|---|
 | `REGISTER_CANDIDATE` | `welcome` | Renderer | `{ name: string (2-60), rollNo: string (3-30 alphanumeric) }` | Saves student credentials and advances to `setup` |
-| `START_EXAM` | `setup` | Renderer | `void` | Computes `endsAt`, enters `in_progress`, and starts countdown timer |
+| `REPORT_CHECK` | `setup`, `in_progress` | Renderer | `{ name: 'camera', ok: boolean }` | Reports hardware check status to main process |
+| `START_EXAM` | `setup` | Renderer | `void` | Validates preconditions (`checks.camera`), enters `in_progress`, starts timer |
 | `SAVE_ANSWER` | `in_progress` | Renderer | `{ questionId: string, optionIndex: number \| null }` | Records or clears candidate answer for a question |
 | `TOGGLE_REVIEW` | `in_progress` | Renderer | `{ questionId: string }` | Flags or unflags a question for candidate review |
 | `SUBMIT_EXAM` | `in_progress` | Renderer | `void` | Manually concludes assessment (`submitReason: 'manual'`) |
@@ -144,24 +150,49 @@ If the window is reloaded (e.g. `Cmd+R`), the renderer immediately reconnects an
 
 ---
 
-## 6. IPC Contract & Security Architecture
+## 6. Permissions & Hardware Security Architecture
 
-### 6.1 Response Envelope Format
+Argus enforces a strict two-layer defense-in-depth model for hardware device permissions:
+
+### 6.1 Two-Layer Permission Architecture
+1. **OS-Level Layer (macOS TCC via `systemPreferences`)**:
+   - macOS manages camera access through its Transparency, Consent, and Control (TCC) subsystem.
+   - `permissions.cjs` queries `systemPreferences.getMediaAccessStatus('camera')` to check if authorization is `'granted'`, `'denied'`, `'restricted'`, or `'not-determined'`.
+   - If `'not-determined'`, `systemPreferences.askForMediaAccess('camera')` initiates the native macOS permission prompt.
+   - If denied, `openCameraSettings()` opens `x-apple.systempreferences:com.apple.preference.security?Privacy_Camera` to guide the student to grant permission.
+2. **Chromium-Level Layer (`session.setPermissionRequestHandler`)**:
+   - By default, Electron grants every permission requested by web content without prompting. This default is unacceptable in an exam proctoring client.
+   - `installPermissionHandlers(session.defaultSession)` intercepts all permission queries:
+     - Allows **only** `permission === 'media'` when `details.mediaTypes` contains `'video'` and **not** `'audio'`, and the requesting URL is verified as trusted.
+     - Denies all other requests (microphone/audio, geolocation, notifications, clipboard, midi).
+     - Installs `setDevicePermissionHandler(() => false)` to categorically block WebUSB, WebHID, Web Bluetooth, and Web Serial.
+
+### 6.2 Why Audio Permission is Denied
+Argus is designed for visual proctoring and identity verification. Audio recording is deliberately denied to minimize student privacy exposure, prevent ambient audio snooping, and reduce the surveillance footprint of the application.
+
+### 6.3 macOS Packaging Note
+The native macOS permission prompt requires `NSCameraUsageDescription` to be declared in the application `Info.plist`. This plist key will be configured in the packaging specification in Commit 10.
+
+---
+
+## 7. IPC Contract & Security Architecture
+
+### 7.1 Response Envelope Format
 All IPC handlers invoked from the renderer return a uniform response envelope:
 - **Success**: `{ ok: true, data: T }`
 - **Failure**: `{ ok: false, error: { code: string, message: string } }`
 
-### 6.2 Sender Trust Validation (`isTrustedSender`)
+### 7.2 Sender Trust Validation (`isTrustedSender`)
 Every IPC invocation in `electron/ipc/register.cjs` is verified before execution:
 1. `event.senderFrame` must exist and be valid.
 2. `event.sender` must strictly match the main application window's `webContents`.
-3. The frame URL (`event.senderFrame.url`) must match the authorized origin:
+3. The frame URL (`event.senderFrame.url`) must match `isTrustedUrl`:
    - In development: starts with `process.env.ARGUS_DEV_URL` (`http://localhost:5173`)
    - In production: starts with `file://` (pointing to the local `dist/` directory)
 
 Calls failing this validation are rejected immediately with error code `'FORBIDDEN'`.
 
-### 6.3 IPC Contract Specification
+### 7.3 IPC Contract Specification
 
 | Channel | Direction | Payload | Return Value | Description |
 |---|---|---|---|---|
@@ -174,10 +205,13 @@ Calls failing this validation are rejected immediately with error code `'FORBIDD
 | `exam:command` | Renderer → Main (`invoke`) | `{ type: string, payload: any }` | `PublicExamState` | Dispatches command through queue |
 | `exam:state-changed` | Main → Renderer (`push`) | `PublicExamState` | `void` | Broadcasts state on every mutation |
 | `exam:tick` | Main → Renderer (`push`) | `{ remainingMs: number }` | `void` | Broadcasts 1-second timer tick |
+| `permissions:camera-status` | Renderer → Main (`invoke`) | `void` | `{ status: string }` | Returns macOS media access status |
+| `permissions:request-camera` | Renderer → Main (`invoke`) | `void` | `{ status: string }` | Prompts OS camera access on macOS |
+| `permissions:open-camera-settings` | Renderer → Main (`invoke`) | `void` | `null` | Opens Camera Privacy settings in macOS |
 
 ---
 
-## 7. Security Guards & Content Security Policy (CSP)
+## 8. Security Guards & Content Security Policy (CSP)
 
 1. **Navigation Guards (`electron/window.cjs`)**:
    - `will-navigate`: Intercepts and blocks any navigation attempting to leave the application origin (`ARGUS_DEV_URL` in dev, `file://` in prod).
@@ -192,7 +226,7 @@ Calls failing this validation are rejected immediately with error code `'FORBIDD
 
 ---
 
-## 8. Commit Log
+## 9. Commit Log
 
 - **Commit 1: chore: scaffold Electron + React + Vite desktop app**
   - Cloned repository and verified Node 20+ runtime.
@@ -217,3 +251,11 @@ Calls failing this validation are rejected immediately with error code `'FORBIDD
   - Created drift-free wall-clock countdown timer (`electron/services/examTimer.cjs`).
   - Registered exam IPC channels (`exam:get-state`, `exam:command`, `exam:state-changed`, `exam:tick`) in main and preload.
   - Built phase-driven screens (`WelcomeScreen`, `SetupScreen`, `ExamScreen`, `ResultScreen`) and React hooks (`useExamState`, `useRemainingTime`).
+
+- **Commit 4: feat(permissions): camera permission flow and permission handlers**
+  - Implemented macOS TCC and Chromium-level permission filtering in `electron/services/permissions.cjs`.
+  - Created shared URL validation helper (`electron/core/trust.cjs`).
+  - Added `checks: { camera: false }` state tracking, `REPORT_CHECK` command, and `START_EXAM` camera precondition.
+  - Built `src/hooks/useCamera.js` with track disconnection listeners and friendly error translation.
+  - Maintained single persistent `<video>` element across `setup` and `in_progress` screens in `src/App.jsx`.
+  - Enhanced `SetupScreen` with system checks card, camera status pill, settings deep link, and 320x240 live preview.

@@ -3,6 +3,8 @@
 
 const { ipcMain, app } = require('electron');
 const { CHANNELS } = require('./channels.cjs');
+const { isTrustedUrl } = require('../core/trust.cjs');
+const permissionsService = require('../services/permissions.cjs');
 
 /**
  * Validates that an incoming IPC event originates from our legitimate, trusted application window.
@@ -22,15 +24,7 @@ function isTrustedSender(event, getMainWindow) {
   }
 
   const frameUrl = event.senderFrame.url;
-  if (!frameUrl) {
-    return false;
-  }
-
-  if (process.env.ARGUS_DEV_URL) {
-    return frameUrl.startsWith(process.env.ARGUS_DEV_URL);
-  }
-
-  return frameUrl.startsWith('file://');
+  return isTrustedUrl(frameUrl);
 }
 
 /**
@@ -134,6 +128,22 @@ function registerIpcHandlers({ getMainWindow }) {
       throw err;
     }
     return await examStore.dispatch(type, { source: 'renderer', payload: commandPayload });
+  });
+
+  // ==========================================
+  // Permissions Domain Handlers
+  // ==========================================
+  handle(CHANNELS.PERMISSIONS_CAMERA_STATUS, async () => {
+    return { status: permissionsService.getCameraStatus() };
+  });
+
+  handle(CHANNELS.PERMISSIONS_REQUEST_CAMERA, async () => {
+    return await permissionsService.requestCamera();
+  });
+
+  handle(CHANNELS.PERMISSIONS_OPEN_CAMERA_SETTINGS, async () => {
+    await permissionsService.openCameraSettings();
+    return null;
   });
 }
 

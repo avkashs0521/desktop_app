@@ -27,6 +27,7 @@ const RENDERER_COMMANDS = Object.freeze([
   'TOGGLE_REVIEW',
   'SUBMIT_EXAM',
   'RESET',
+  'REPORT_CHECK',
 ]);
 
 /**
@@ -43,8 +44,8 @@ const INTERNAL_COMMANDS = Object.freeze([
  */
 const TRANSITIONS = Object.freeze({
   [PHASES.WELCOME]: ['REGISTER_CANDIDATE'],
-  [PHASES.SETUP]: ['START_EXAM', 'RESET'],
-  [PHASES.IN_PROGRESS]: ['SAVE_ANSWER', 'TOGGLE_REVIEW', 'SUBMIT_EXAM', 'TIME_UP', 'TERMINATE'],
+  [PHASES.SETUP]: ['START_EXAM', 'RESET', 'REPORT_CHECK'],
+  [PHASES.IN_PROGRESS]: ['SAVE_ANSWER', 'TOGGLE_REVIEW', 'SUBMIT_EXAM', 'TIME_UP', 'TERMINATE', 'REPORT_CHECK'],
   [PHASES.SUBMITTED]: ['RESET'],
   [PHASES.TERMINATED]: ['RESET'],
 });
@@ -90,6 +91,7 @@ class ExamStore extends EventEmitter {
       review: [],
       violations: [],
       snapshotCount: 0,
+      checks: { camera: false },
       result: null, // Placeholder until commit 9 ({ answeredCount })
     };
   }
@@ -162,6 +164,10 @@ class ExamStore extends EventEmitter {
       }
 
       case 'START_EXAM': {
+        if (!this.state.checks?.camera) {
+          throw new ExamError('PRECONDITION', 'Turn on your camera before starting');
+        }
+
         const now = Date.now();
         this.state.startedAt = now;
         this.state.endsAt = now + this.state.durationMs;
@@ -238,6 +244,11 @@ class ExamStore extends EventEmitter {
         break;
       }
 
+      case 'REPORT_CHECK': {
+        this.state.checks[payload.name] = Boolean(payload.ok);
+        break;
+      }
+
       default:
         throw new ExamError('UNKNOWN_COMMAND', `Unknown command: ${command}`);
     }
@@ -293,6 +304,12 @@ class ExamStore extends EventEmitter {
     if (command === 'TOGGLE_REVIEW') {
       if (!payload || typeof payload.questionId !== 'string' || payload.questionId.trim() === '') {
         throw new ExamError('VALIDATION', 'TOGGLE_REVIEW requires a non-empty questionId string.');
+      }
+    }
+
+    if (command === 'REPORT_CHECK') {
+      if (!payload || payload.name !== 'camera' || typeof payload.ok !== 'boolean') {
+        throw new ExamError('VALIDATION', "REPORT_CHECK requires { name: 'camera', ok: boolean }");
       }
     }
   }

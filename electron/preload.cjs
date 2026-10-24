@@ -19,6 +19,11 @@ const CHANNELS = Object.freeze({
   EXAM_COMMAND: 'exam:command',
   EXAM_STATE_CHANGED: 'exam:state-changed',
   EXAM_TICK: 'exam:tick',
+
+  // Permissions domain
+  PERMISSIONS_CAMERA_STATUS: 'permissions:camera-status',
+  PERMISSIONS_REQUEST_CAMERA: 'permissions:request-camera',
+  PERMISSIONS_OPEN_CAMERA_SETTINGS: 'permissions:open-camera-settings',
 });
 
 /**
@@ -71,5 +76,10 @@ contextBridge.exposeInMainWorld('argus', {
     send: (type, payload) => invoke(CHANNELS.EXAM_COMMAND, { type, payload }),
     onState: (callback) => subscribe(CHANNELS.EXAM_STATE_CHANGED, callback),
     onTick: (callback) => subscribe(CHANNELS.EXAM_TICK, callback),
+  },
+  permissions: {
+    cameraStatus: () => invoke(CHANNELS.PERMISSIONS_CAMERA_STATUS),
+    requestCamera: () => invoke(CHANNELS.PERMISSIONS_REQUEST_CAMERA),
+    openCameraSettings: () => invoke(CHANNELS.PERMISSIONS_OPEN_CAMERA_SETTINGS),
   },
 });

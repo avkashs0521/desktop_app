@@ -1,6 +1,8 @@
 // src/App.jsx - Main application coordinator routing screens by exam phase
+import { useEffect, useRef } from 'react';
 import TitleBar from './components/TitleBar';
 import { useExamState } from './hooks/useExamState';
+import { useCamera } from './hooks/useCamera';
 import { isElectron } from './api';
 import WelcomeScreen from './screens/WelcomeScreen';
 import SetupScreen from './screens/SetupScreen';
@@ -10,10 +12,41 @@ import ResultScreen from './screens/ResultScreen';
 /**
  * Main application coordinator.
  * Reads single-source-of-truth exam state from the main process and renders the matching screen.
- * Strictly no exam state is retained in React.
+ * Maintains one persistent <video> element for webcam streaming across phase transitions.
  */
 export default function App() {
   const { state, send, error } = useExamState();
+  const camera = useCamera({ phase: state?.phase, send });
+  const cameraFrameRef = useRef(null);
+
+  // Turn off the camera when the exam concludes (submitted or terminated)
+  useEffect(() => {
+    if (state?.phase === 'submitted' || state?.phase === 'terminated') {
+      camera.stop();
+    }
+  }, [state?.phase, camera]);
+
+  // Dynamically position the persistent camera overlay to match the 320x240 placeholder in SetupScreen
+  useEffect(() => {
+    if (state?.phase === 'setup' && camera.status === 'on') {
+      const updatePosition = () => {
+        const placeholder = document.getElementById('setup-camera-placeholder');
+        if (placeholder && cameraFrameRef.current) {
+          const rect = placeholder.getBoundingClientRect();
+          cameraFrameRef.current.style.top = `${rect.top}px`;
+          cameraFrameRef.current.style.left = `${rect.left}px`;
+          cameraFrameRef.current.style.width = `${rect.width}px`;
+          cameraFrameRef.current.style.height = `${rect.height}px`;
+        }
+      };
+
+      updatePosition();
+      window.addEventListener('resize', updatePosition);
+      return () => {
+        window.removeEventListener('resize', updatePosition);
+      };
+    }
+  }, [state?.phase, camera.status]);
 
   if (!isElectron) {
     return (
@@ -68,6 +101,11 @@ export default function App() {
             onStart={() => send('START_EXAM')}
             onBack={() => send('RESET')}
             error={error?.message}
+            cameraStatus={camera.status}
+            cameraError={camera.error}
+            onEnableCamera={camera.start}
+            onOpenSettings={camera.openSettings}
+            checks={state.checks}
           />
         )}
 
@@ -89,6 +127,27 @@ export default function App() {
           />
         )}
       </main>
+
+      {/* Persistent Proctor Camera (kept mounted across setup -> exam to preserve hardware stream) */}
+      <div
+        ref={cameraFrameRef}
+        className={`persistent-camera-frame mode-${state.phase} status-${camera.status}`}
+        aria-hidden={camera.status !== 'on' || state.phase === 'welcome' || state.phase === 'submitted' || state.phase === 'terminated'}
+      >
+        <video
+          ref={camera.videoRef}
+          autoPlay
+          playsInline
+          muted
+          className="persistent-video-element"
+        />
+        {state.phase === 'in_progress' && (
+          <div className="proctoring-pill">
+            <span className="proctoring-dot" />
+            <span>Proctoring on</span>
+          </div>
+        )}
+      </div>
     </>
   );
 }
