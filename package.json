@@ -1,0 +1,36 @@
+{
+  "name": "argus-exam",
+  "productName": "Argus",
+  "version": "0.1.0",
+  "description": "Proctored exam desktop app for macOS",
+  "author": "Avkash Singh",
+  "private": true,
+  "main": "electron/main.cjs",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -k -n vite,electron \"vite\" \"wait-on http://localhost:5173 && cross-env ARGUS_DEV_URL=http://localhost:5173 electron .\"",
+    "dev:web": "vite",
+    "build": "vite build",
+    "start": "vite build && electron .",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "concurrently": "^10.0.6",
+    "cross-env": "^10.1.0",
+    "electron": "^44.1.1",
+    "eslint": "^10.13.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.7",
+    "globals": "^17.13.0",
+    "vite": "^8.3.4",
+    "wait-on": "^9.5.1"
+  }
+}
