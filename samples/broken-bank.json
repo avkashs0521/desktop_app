@@ -1,0 +1,41 @@
+{
+  "bankId": "broken-test-bank",
+  "title": "Broken Question Bank for Validation Testing",
+  "questions": [
+    {
+      "id": "b01",
+      "text": "This question has a valid structure.",
+      "options": ["Option A", "Option B", "Option C", "Option D"],
+      "answerIndex": 0,
+      "marks": 1
+    },
+    {
+      "id": "b01",
+      "text": "This question contains Mistake 1: duplicate ID 'b01' (identical to first question).",
+      "options": ["Option A", "Option B", "Option C", "Option D"],
+      "answerIndex": 1,
+      "marks": 1
+    },
+    {
+      "id": "b03",
+      "text": "This question contains Mistake 2: answerIndex 5 is out of bounds for 4 options (0–3).",
+      "options": ["First", "Second", "Third", "Fourth"],
+      "answerIndex": 5,
+      "marks": 1
+    },
+    {
+      "id": "b04",
+      "text": "This question contains Mistake 3: only one option provided (minimum is 2).",
+      "options": ["Sole option"],
+      "answerIndex": 0,
+      "marks": 1
+    },
+    {
+      "id": "b05",
+      "text": "This is another valid question.",
+      "options": ["True", "False"],
+      "answerIndex": 0,
+      "marks": 1
+    }
+  ]
+}

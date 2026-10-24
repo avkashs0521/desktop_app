@@ -102,14 +102,24 @@ function exit(win) {
  * Called when SUBMIT_EXAM comes from the renderer (source = 'renderer').
  *
  * @param {Electron.BrowserWindow} win
+ * @param {Object} [stats]
+ * @param {number} [stats.answeredCount]
+ * @param {number} [stats.totalCount]
+ * @param {number} [stats.reviewCount]
  * @returns {Promise<boolean>} true if confirmed.
  */
-async function showSubmitConfirm(win) {
+async function showSubmitConfirm(win, stats = {}) {
+  const answeredCount = typeof stats.answeredCount === 'number' ? stats.answeredCount : 0;
+  const totalCount = typeof stats.totalCount === 'number' ? stats.totalCount : 0;
+  const reviewCount = typeof stats.reviewCount === 'number' ? stats.reviewCount : 0;
+
+  const detail = `You answered ${answeredCount} of ${totalCount} questions. ${reviewCount} are marked for review.`;
+
   const { response } = await dialog.showMessageBox(win, {
     type: 'question',
     title: 'Submit Exam',
     message: 'Submit your exam?',
-    detail: 'You cannot change answers after submitting.',
+    detail,
     buttons: ['Cancel', 'Submit'],
     defaultId: 1,
     cancelId: 0,

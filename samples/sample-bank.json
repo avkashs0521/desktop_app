@@ -1,0 +1,66 @@
+{
+  "bankId": "webdev-sample-v1",
+  "title": "Modern Web Technologies Sample Bank",
+  "questions": [
+    {
+      "id": "s01",
+      "text": "What is the primary function of the CSS `display: flex` declaration?",
+      "options": [
+        "It establishes a block-level flex container and enables one-dimensional flex layout algorithms for direct children.",
+        "It forces all text inside the element to render in a monospace font.",
+        "It automatically centres the element vertically and horizontally on the viewport.",
+        "It converts inline elements into native SVG vector canvases."
+      ],
+      "answerIndex": 0,
+      "marks": 1
+    },
+    {
+      "id": "s02",
+      "text": "Which JavaScript method parses a valid JSON string into a JavaScript object or primitive value?",
+      "options": [
+        "JSON.stringify()",
+        "JSON.parse()",
+        "JSON.toObject()",
+        "Object.fromJSON()"
+      ],
+      "answerIndex": 1,
+      "marks": 1
+    },
+    {
+      "id": "s03",
+      "text": "In React, what is the key difference between controlled and uncontrolled form inputs?",
+      "options": [
+        "Controlled inputs store their current value in React component state, whereas uncontrolled inputs store value in the DOM node.",
+        "Uncontrolled inputs cannot trigger any onChange events.",
+        "Controlled inputs can only handle boolean values.",
+        "Controlled inputs do not support validation."
+      ],
+      "answerIndex": 0,
+      "marks": 1
+    },
+    {
+      "id": "s04",
+      "text": "Which HTTP status code indicates that a client requested a resource that does not exist on the server?",
+      "options": [
+        "200 OK",
+        "301 Moved Permanently",
+        "404 Not Found",
+        "500 Internal Server Error"
+      ],
+      "answerIndex": 2,
+      "marks": 1
+    },
+    {
+      "id": "s05",
+      "text": "What is the return type of an `async` function in JavaScript?",
+      "options": [
+        "An Observable",
+        "A synchronous Callback",
+        "A Promise",
+        "A Generator"
+      ],
+      "answerIndex": 2,
+      "marks": 1
+    }
+  ]
+}

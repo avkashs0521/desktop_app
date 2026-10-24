@@ -274,7 +274,57 @@ The quit sequence follows a deterministic event order:
 
 ---
 
-## 10. Commit Log
+## 10. Question Bank Architecture, Validation & Security
+
+### Schema & Data Model
+Question banks in Argus are stored as structured JSON objects:
+```json
+{
+  "bankId": "appdev-desktop-v1",
+  "title": "Desktop Application Fundamentals",
+  "questions": [
+    {
+      "id": "q01",
+      "text": "Which statement accurately describes the architectural distinction between Electron's main process and renderer process?",
+      "options": [
+        "The renderer process creates native OS windows...",
+        "The main process runs in Node.js to manage native OS integration...",
+        "Both processes share the same JavaScript global scope...",
+        "Electron spins up a separate main process for each BrowserWindow..."
+      ],
+      "answerIndex": 1,
+      "marks": 1
+    }
+  ]
+}
+```
+
+### Validation Rules (`electron/services/questionBank.cjs`)
+To prevent malformed or invalid assessments, banks imported into Argus must pass strict validation checks:
+1. **Metadata**: `bankId` and `title` must be non-empty strings.
+2. **Question Count**: Must contain between 5 and 200 questions.
+3. **Identifiers**: Every question `id` must be a non-empty, unique string.
+4. **Question Text**: Must be between 1 and 1000 characters.
+5. **Options Array**: Must contain between 2 and 6 unique, non-empty strings.
+6. **Answer Key**: `answerIndex` must be an integer within `0 <= answerIndex < options.length`.
+7. **Marks**: Optional positive number up to 10 (defaults to 1).
+Any validation failure names the offending question and specific error (e.g. `b03: answerIndex 5 is outside 0–3`), and the first 5 errors are displayed in a native error dialog.
+
+### Why Answer Keys Remain in the Main Process
+The Chromium renderer environment is treated as **untrusted**. Candidates or automated tools could inspect JavaScript memory or run `window.argus.exam.getQuestions()` in the DevTools console to uncover correct answers before submitting.
+- In Argus, `answerIndex` is stripped by `toPublicQuestions()` before leaving the main process.
+- The renderer only ever receives `{ id, text, options, marks }`.
+- Scoring and grading take place exclusively in the main process (`examStore._calculateResult()`).
+
+### SHA-256 Content Fingerprint
+`questionBank.hashText(raw)` computes a SHA-256 hex digest of the raw question bank content. The hash:
+- Identifies the bank by its exact content rather than volatile file paths or renamed file names.
+- Enables tamper-evident audit logging and verification that all candidates solved identical assessment sets.
+- A truncated 8-character hash (`hashShort`) is displayed in `SetupScreen` for immediate human verification.
+
+---
+
+## 11. Commit Log
 
 - **Commit 1: chore: scaffold Electron + React + Vite desktop app**
   - Cloned repository and verified Node 20+ runtime.
@@ -329,3 +379,12 @@ The quit sequence follows a deterministic event order:
   - Added single instance lock (`app.requestSingleInstanceLock()`) focusing existing window on second launch.
   - Added robust quit guard (`confirmQuitDuringExam()`) intercepting `before-quit` and window `close` events during exams.
   - Updated `TitleBar` to hide controls and `ExamScreen` to prevent context menus and clipboard events during assessment.
+
+- **Commit 7: feat(questions): question bank loading, import dialog and exam screen**
+  - Restructured `electron/data/questions.json` with 15 verified desktop application questions with `bankId`, `title`, `answerIndex`, and `marks`.
+  - Created `samples/sample-bank.json` (5 valid questions) and `samples/broken-bank.json` (3 deliberate mistakes for viva demonstration).
+  - Implemented `electron/services/questionBank.cjs` with `validateBank`, `hashText` (SHA-256), `loadDefaultBank`, `getActiveBank`, `toPublicQuestions`, and `importBank`.
+  - Registered IPC channels `exam:get-questions`, `questions:get-active`, and `questions:import`.
+  - Added `File → Import Question Bank…` (CmdOrCtrl+O) to the application menu, enabled only in `welcome` and `setup` phases.
+  - Enhanced `SetupScreen` with a Question Bank card displaying title, question count, source, short hash, and import button.
+  - Upgraded `ExamScreen` to securely load questions on mount/reload, render the question palette with real-time answer/review badges, support "Clear response", and enable Left/Right arrow key navigation.

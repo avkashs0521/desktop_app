@@ -140,6 +140,35 @@ function registerIpcHandlers({ getMainWindow }) {
     return await examStore.dispatch(type, { source: 'renderer', payload: commandPayload });
   });
 
+  handle(CHANNELS.EXAM_GET_QUESTIONS, async () => {
+    const { examStore } = require('../core/examStore.cjs');
+    const { toPublicQuestions, getActiveBank } = require('../services/questionBank.cjs');
+
+    // Security guard: questions are only disclosed while the exam is active
+    if (examStore.state.phase !== 'in_progress') {
+      const err = new Error('Questions are accessible only during an active exam session.');
+      err.code = 'INVALID_PHASE';
+      throw err;
+    }
+
+    const { bank } = getActiveBank();
+    return toPublicQuestions(bank, examStore.state.questionOrder);
+  });
+
+  // ==========================================
+  // Question Bank Domain Handlers
+  // ==========================================
+  handle(CHANNELS.QUESTIONS_GET_ACTIVE, async () => {
+    const { getActiveBankSummary } = require('../services/questionBank.cjs');
+    return getActiveBankSummary();
+  });
+
+  handle(CHANNELS.QUESTIONS_IMPORT, async () => {
+    const { importBank } = require('../services/questionBank.cjs');
+    const win = getMainWindow();
+    return await importBank(win);
+  });
+
   // ==========================================
   // Permissions Domain Handlers
   // ==========================================

@@ -45,6 +45,7 @@ export const api = {
   },
   exam: {
     getState: () => (isElectron ? unwrap(window.argus.exam.getState()) : ensureDesktop()),
+    getQuestions: () => (isElectron ? unwrap(window.argus.exam.getQuestions()) : ensureDesktop()),
     send: (type, payload) => (isElectron ? unwrap(window.argus.exam.send(type, payload)) : ensureDesktop()),
     onState: (callback) => {
       if (!isElectron) {
@@ -63,6 +64,16 @@ export const api = {
         return () => {};
       }
       return window.argus.exam.onWarning(callback);
+    },
+  },
+  questions: {
+    getActive: () => (isElectron ? unwrap(window.argus.questions.getActive()) : ensureDesktop()),
+    import: () => (isElectron ? unwrap(window.argus.questions.import()) : ensureDesktop()),
+    onChanged: (callback) => {
+      if (!isElectron || !window.argus.questions?.onChanged) {
+        return () => {};
+      }
+      return window.argus.questions.onChanged(callback);
     },
   },
   permissions: {

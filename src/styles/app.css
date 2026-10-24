@@ -835,12 +835,12 @@ html, body {
   }
 }
 
-/* Timer variations for low-time warnings */
-.timer-box--warning .timer-countdown {
-  color: #f59e0b;
-}
+/* Timer variations for low-time warnings (turns red under 5 minutes) */
+.timer-box--warning .timer-countdown,
 .timer-box--critical .timer-countdown {
   color: #ef4444;
+}
+.timer-box--critical .timer-countdown {
   animation: pulse 0.8s ease-in-out infinite alternate;
 }
 @keyframes pulse {
@@ -857,7 +857,7 @@ html, body {
 
 /* ── Sidebar ── */
 .exam-sidebar {
-  width: 180px;
+  width: 190px;
   flex-shrink: 0;
   background: var(--bg-card);
   border-right: 1px solid var(--border-color);
@@ -886,7 +886,7 @@ html, body {
 /* Individual question pill button */
 .q-pill {
   aspect-ratio: 1;
-  border: none;
+  border: 1px solid transparent;
   border-radius: var(--radius-sm);
   font-size: var(--font-size-xs);
   font-weight: 600;
@@ -898,21 +898,27 @@ html, body {
   justify-content: center;
 }
 .q-pill:hover {
-  transform: scale(1.1);
+  transform: scale(1.08);
   box-shadow: 0 2px 6px rgba(0,0,0,0.15);
 }
-.q-pill--active {
-  background: var(--accent);
-  color: #fff;
-  box-shadow: 0 0 0 2px var(--accent);
+.q-pill--current {
+  box-shadow: 0 0 0 2px var(--accent) !important;
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 .q-pill--answered {
-  background: #10b981;
+  background: var(--accent);
   color: #fff;
 }
 .q-pill--review {
-  background: #f59e0b;
+  background: transparent;
+  color: #d97706;
+  border: 2px solid #f59e0b;
+}
+.q-pill--answered.q-pill--review {
+  background: var(--accent);
   color: #fff;
+  border: 2px solid #f59e0b;
 }
 .q-pill--unanswered {
   background: var(--border-color);
@@ -941,9 +947,33 @@ html, body {
   border-radius: 3px;
   flex-shrink: 0;
 }
-.dot--answered  { background: #10b981; }
-.dot--review    { background: #f59e0b; }
+.dot--answered  { background: var(--accent); }
+.dot--review    { background: transparent; border: 2px solid #f59e0b; }
 .dot--unanswered { background: var(--border-color); }
+
+/* Question bank card in setup screen */
+.question-bank-card {
+  margin-top: var(--space-md);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-md);
+}
+.bank-card-header {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.bank-card-header .section-title {
+  margin-bottom: 0;
+}
+
+/* Question item action buttons */
+.question-item-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
 
 /* ── Question panel ── */
 .exam-question-panel {

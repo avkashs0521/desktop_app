@@ -6,7 +6,7 @@ const { config } = require('./config.cjs');
 const { createScope } = require('./lifecycle.cjs');
 const examTimer = require('../services/examTimer.cjs');
 const lockdown = require('../services/lockdown.cjs');
-const allQuestions = require('../data/questions.json');
+const { getActiveBank } = require('../services/questionBank.cjs');
 
 // Window getter hook: allows examStore dialogs to attach to the main BrowserWindow
 let _getMainWindow = null;
@@ -104,9 +104,6 @@ class ExamStore extends EventEmitter {
    * @private
    */
   _createInitialState(existingCandidate = { name: '', rollNo: '' }) {
-    // Shuffle questions per session if the config flag is set; otherwise preserve original order
-    const questions = config.shuffleQuestions ? shuffleArray(allQuestions) : [...allQuestions];
-
     return {
       sessionId: crypto.randomUUID(),
       phase: PHASES.WELCOME,
@@ -117,7 +114,8 @@ class ExamStore extends EventEmitter {
       endsAt: null,
       submittedAt: null,
       submitReason: null,
-      questions,          // Array of { id, text, options, answer } — shuffled per session
+      bank: null,
+      questionOrder: [],
       answers: {},
       review: [],
       violations: [],
@@ -207,10 +205,25 @@ class ExamStore extends EventEmitter {
           }
         }
 
+        // Build question order from the active question bank
+        const activeBank = getActiveBank();
+        const bank = activeBank.bank;
+        const rawIds = bank.questions.map((q) => q.id);
+        const questionOrder = config.shuffleQuestions ? shuffleArray(rawIds) : [...rawIds];
+        const totalMarks = bank.questions.reduce((sum, q) => sum + (typeof q.marks === 'number' ? q.marks : 1), 0);
+
         const now = Date.now();
         this.state.startedAt = now;
         this.state.endsAt = now + this.state.durationMs;
         this.state.phase = PHASES.IN_PROGRESS;
+        this.state.questionOrder = questionOrder;
+        this.state.bank = {
+          bankId: bank.bankId,
+          title: bank.title,
+          hash: activeBank.hash,
+          count: bank.questions.length,
+          totalMarks,
+        };
 
         // Create dedicated lifecycle scope for this active exam session
         if (this.examScope) {
@@ -256,7 +269,14 @@ class ExamStore extends EventEmitter {
         if (source === 'renderer') {
           const win = getWindow();
           if (win) {
-            const confirmed = await lockdown.showSubmitConfirm(win);
+            const answeredCount = Object.keys(this.state.answers || {}).length;
+            const totalCount = this.state.questionOrder?.length || 0;
+            const reviewCount = this.state.review?.length || 0;
+            const confirmed = await lockdown.showSubmitConfirm(win, {
+              answeredCount,
+              totalCount,
+              reviewCount,
+            });
             if (!confirmed) {
               throw new ExamError('CANCELLED', 'Submission cancelled by candidate.');
             }
@@ -346,10 +366,23 @@ class ExamStore extends EventEmitter {
       if (!payload || typeof payload.questionId !== 'string' || payload.questionId.trim() === '') {
         throw new ExamError('VALIDATION', 'SAVE_ANSWER requires a non-empty questionId string.');
       }
+      const questionId = payload.questionId.trim();
+      if (!this.state.questionOrder || !this.state.questionOrder.includes(questionId)) {
+        throw new ExamError('VALIDATION', `Question '${questionId}' does not exist in the active session.`);
+      }
+
+      const activeBank = getActiveBank();
+      const question = activeBank.bank?.questions?.find((q) => q.id === questionId);
+      if (!question) {
+        throw new ExamError('VALIDATION', `Question '${questionId}' was not found in the question bank.`);
+      }
+
       const { optionIndex } = payload;
-      const isValidOption = (typeof optionIndex === 'number' && Number.isInteger(optionIndex) && optionIndex >= 0) || optionIndex === null;
-      if (!isValidOption) {
-        throw new ExamError('VALIDATION', 'SAVE_ANSWER requires optionIndex to be an integer >= 0 or null.');
+      if (optionIndex !== null) {
+        const isValidOption = typeof optionIndex === 'number' && Number.isInteger(optionIndex) && optionIndex >= 0 && optionIndex < question.options.length;
+        if (!isValidOption) {
+          throw new ExamError('VALIDATION', `optionIndex ${optionIndex} is outside valid options range (0–${question.options.length - 1}).`);
+        }
       }
     }
 
@@ -367,24 +400,40 @@ class ExamStore extends EventEmitter {
   }
 
   /**
-   * Grades the current answers against the correct answers in the question bank.
+   * Grades the current answers against the correct answer keys in the active question bank.
    * @private
-   * @returns {{ answeredCount: number, correctCount: number, totalCount: number, scorePercent: number }}
+   * @returns {{ answeredCount: number, correctCount: number, totalCount: number, scorePercent: number, totalMarks: number, earnedMarks: number }}
    */
   _calculateResult() {
-    const questions = this.state.questions || [];
+    const activeBank = getActiveBank();
+    const questions = activeBank.bank?.questions || [];
     const answers = this.state.answers || {};
     const answeredCount = Object.keys(answers).length;
 
-    // Count questions where the candidate's selected option matches the stored answer index
-    const correctCount = questions.reduce((count, q) => {
-      return answers[q.id] === q.answer ? count + 1 : count;
-    }, 0);
+    let correctCount = 0;
+    let earnedMarks = 0;
+    let totalMarks = 0;
+
+    questions.forEach((q) => {
+      const marks = typeof q.marks === 'number' ? q.marks : 1;
+      totalMarks += marks;
+      if (answers[q.id] === q.answerIndex) {
+        correctCount += 1;
+        earnedMarks += marks;
+      }
+    });
 
     const totalCount = questions.length;
-    const scorePercent = totalCount > 0 ? Math.round((correctCount / totalCount) * 100) : 0;
+    const scorePercent = totalMarks > 0 ? Math.round((earnedMarks / totalMarks) * 100) : 0;
 
-    return { answeredCount, correctCount, totalCount, scorePercent };
+    return {
+      answeredCount,
+      correctCount,
+      totalCount,
+      scorePercent,
+      totalMarks,
+      earnedMarks,
+    };
   }
 }
 

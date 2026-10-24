@@ -40,6 +40,25 @@ function buildMenu(state) {
       ],
     },
 
+    // File Menu
+    {
+      label: 'File',
+      submenu: [
+        {
+          label: 'Import Question Bank…',
+          accelerator: 'CmdOrCtrl+O',
+          enabled: phase === 'welcome' || phase === 'setup',
+          click: async (_, focusedWindow) => {
+            const { importBank } = require('./services/questionBank.cjs');
+            const win = focusedWindow || getActiveWindow();
+            if (win) {
+              await importBank(win);
+            }
+          },
+        },
+      ],
+    },
+
     // Edit Menu:
     // Without an Edit menu, Cmd+C / Cmd+V do not work in text inputs on macOS.
     // During an exam, clipboard operations (cut/copy/paste) are disabled.

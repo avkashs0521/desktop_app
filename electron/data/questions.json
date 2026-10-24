@@ -1,167 +1,186 @@
-[
-  {
-    "id": "q01",
-    "text": "Which of the following is the correct way to create a BrowserWindow in Electron's main process?",
-    "options": [
-      "new BrowserWindow({ width: 800, height: 600 })",
-      "window.open('index.html', 800, 600)",
-      "electron.createWindow({ size: [800, 600] })",
-      "app.createBrowserWindow(800, 600)"
-    ],
-    "answer": 0
-  },
-  {
-    "id": "q02",
-    "text": "What is the purpose of `contextBridge.exposeInMainWorld()` in Electron's preload script?",
-    "options": [
-      "To load the main HTML file into the BrowserWindow",
-      "To safely expose a limited API from the preload to the renderer without leaking Node.js globals",
-      "To create a new Node.js process for background tasks",
-      "To register IPC handlers on the main process"
-    ],
-    "answer": 1
-  },
-  {
-    "id": "q03",
-    "text": "In React 19, which hook is used to subscribe to a side-effect and clean it up when a component unmounts?",
-    "options": [
-      "useState",
-      "useContext",
-      "useEffect",
-      "useReducer"
-    ],
-    "answer": 2
-  },
-  {
-    "id": "q04",
-    "text": "Why does Argus set `nodeIntegration: false` in BrowserWindow's webPreferences?",
-    "options": [
-      "To reduce memory usage in the renderer process",
-      "To prevent the webpage from requiring built-in Node.js modules like 'fs' or 'child_process'",
-      "To enable ES module imports in the renderer",
-      "To disable the Chromium network stack"
-    ],
-    "answer": 1
-  },
-  {
-    "id": "q05",
-    "text": "Which CSS property makes a flex container's children wrap onto a new row when there is not enough horizontal space?",
-    "options": [
-      "flex-direction: column",
-      "align-items: flex-start",
-      "flex-wrap: wrap",
-      "justify-content: space-between"
-    ],
-    "answer": 2
-  },
-  {
-    "id": "q06",
-    "text": "What does `ipcMain.handle()` return to the renderer when used with `ipcRenderer.invoke()`?",
-    "options": [
-      "A Node.js EventEmitter object",
-      "A resolved Promise containing the handler's return value",
-      "An IPC event object with sender metadata",
-      "A Buffer of serialized JSON bytes"
-    ],
-    "answer": 1
-  },
-  {
-    "id": "q07",
-    "text": "In Vite, what is the purpose of setting `base: './'` in `vite.config.js` for an Electron app?",
-    "options": [
-      "It enables TypeScript compilation",
-      "It forces Vite to use absolute file paths in the build output",
-      "It ensures asset URLs in the built HTML are relative so they resolve correctly when loaded from `file://`",
-      "It activates Vite's static server mode"
-    ],
-    "answer": 2
-  },
-  {
-    "id": "q08",
-    "text": "Which of the following correctly describes the Electron process architecture?",
-    "options": [
-      "A single process hosts both UI rendering and Node.js API access",
-      "The renderer process has direct access to all Node.js modules when sandbox is enabled",
-      "The main process runs in Node.js and communicates with renderer processes via IPC",
-      "The preload script runs in a third separate OS process"
-    ],
-    "answer": 2
-  },
-  {
-    "id": "q09",
-    "text": "What does `Object.freeze()` do in JavaScript?",
-    "options": [
-      "Converts an object to a JSON string",
-      "Prevents new properties from being added and existing properties from being modified",
-      "Creates a shallow copy of an object",
-      "Locks the object's prototype chain"
-    ],
-    "answer": 1
-  },
-  {
-    "id": "q10",
-    "text": "In Argus's drift-free timer, why is `remainingMs = Math.max(0, endsAt - Date.now())` preferred over decrementing a counter?",
-    "options": [
-      "It avoids using the JavaScript `Date` API which is inaccurate",
-      "It automatically pauses when the window is hidden",
-      "It anchors time calculation to wall-clock so CPU throttling and pauses don't cause drift",
-      "It prevents the timer from firing more than once per second"
-    ],
-    "answer": 2
-  },
-  {
-    "id": "q11",
-    "text": "Which React concept allows state and logic to be reused across multiple components without modifying their structure?",
-    "options": [
-      "Higher-Order Components (HOC)",
-      "Custom Hooks",
-      "React.memo",
-      "Context API"
-    ],
-    "answer": 1
-  },
-  {
-    "id": "q12",
-    "text": "What is the role of `package.json`'s `\"main\"` field in an Electron project?",
-    "options": [
-      "It specifies the entry HTML file for the renderer",
-      "It defines the npm start script command",
-      "It tells Electron which JavaScript file to execute as the main process entry point",
-      "It declares the Vite bundler configuration file"
-    ],
-    "answer": 2
-  },
-  {
-    "id": "q13",
-    "text": "Which HTTP header prevents a web page from loading resources from external origins in a strict Content Security Policy?",
-    "options": [
-      "X-Frame-Options: DENY",
-      "default-src 'self'",
-      "Strict-Transport-Security: max-age=31536000",
-      "X-Content-Type-Options: nosniff"
-    ],
-    "answer": 1
-  },
-  {
-    "id": "q14",
-    "text": "In ES modules (ESM), which syntax is used to expose a function for use in other modules?",
-    "options": [
-      "module.exports = { myFunction }",
-      "global.myFunction = myFunction",
-      "export function myFunction() {}",
-      "require('./myFunction')"
-    ],
-    "answer": 2
-  },
-  {
-    "id": "q15",
-    "text": "What is the primary benefit of using a serialized Promise queue (promise chain) for state machine commands in Argus?",
-    "options": [
-      "It allows multiple commands to run in parallel for better performance",
-      "It ensures commands execute strictly one at a time, preventing race conditions and state corruption",
-      "It retries failed commands automatically up to three times",
-      "It caches command results in localStorage for offline access"
-    ],
-    "answer": 1
-  }
-]
+{
+  "bankId": "appdev-desktop-v1",
+  "title": "Desktop Application Fundamentals",
+  "questions": [
+    {
+      "id": "q01",
+      "text": "Which statement accurately describes the architectural distinction between Electron's main process and renderer process?",
+      "options": [
+        "The renderer process creates native OS windows and manages application lifecycles, while the main process executes the webpage DOM.",
+        "The main process runs in Node.js to manage native OS integration and windows, while renderer processes run Chromium to render web interfaces.",
+        "Both processes share the same JavaScript global scope and can access Node.js built-ins without IPC.",
+        "Electron spins up a separate main process for each BrowserWindow opened by the application."
+      ],
+      "answerIndex": 1,
+      "marks": 1
+    },
+    {
+      "id": "q02",
+      "text": "What is the primary security benefit of using `contextBridge.exposeInMainWorld()` in a preload script?",
+      "options": [
+        "It accelerates DOM tree rendering by bypassing Chromium security boundaries.",
+        "It safely exposes a selective API to the renderer without leaking full Node.js or Electron internals across the execution context.",
+        "It automatically encrypts all HTTP network requests initiated by the renderer.",
+        "It binds the client window directly to the operating system's kernel."
+      ],
+      "answerIndex": 1,
+      "marks": 1
+    },
+    {
+      "id": "q03",
+      "text": "How do `ipcMain.handle()` and `ipcRenderer.invoke()` coordinate two-way asynchronous communication?",
+      "options": [
+        "ipcRenderer.invoke() sends a blocking call that freezes the renderer until ipcMain.handle() responds.",
+        "ipcMain.handle() registers a request-response handler whose return value resolves the Promise returned by ipcRenderer.invoke().",
+        "ipcMain.handle() can only transmit string payloads and cannot serialize JavaScript objects.",
+        "ipcRenderer.invoke() requires a separate ipcRenderer.on() listener to capture the return value."
+      ],
+      "answerIndex": 1,
+      "marks": 1
+    },
+    {
+      "id": "q04",
+      "text": "What protection does `contextIsolation: true` provide in BrowserWindow webPreferences?",
+      "options": [
+        "It ensures preload scripts and website scripts run in separate JavaScript contexts, preventing webpage code from mutating preload prototypes or hijacking exposed objects.",
+        "It blocks the preload script from requiring any CommonJS modules.",
+        "It isolates the webpage completely from Chromium's CSS engine.",
+        "It prevents the main process from sending push messages to the renderer."
+      ],
+      "answerIndex": 0,
+      "marks": 1
+    },
+    {
+      "id": "q05",
+      "text": "Which Electron module and method should be used to display an OS-native modal file selection or alert dialog attached to a specific BrowserWindow?",
+      "options": [
+        "window.alert() and window.confirm() in the renderer process",
+        "dialog.showMessageBox(win, options) or dialog.showOpenDialog(win, options) in the main process",
+        "shell.openPath(win, options) in the main process",
+        "app.showModal(win, options) in the main process"
+      ],
+      "answerIndex": 1,
+      "marks": 1
+    },
+    {
+      "id": "q06",
+      "text": "Why is an 'Edit' menu containing standard roles (`undo`, `copy`, `paste`) required in macOS Electron applications?",
+      "options": [
+        "macOS requires an Edit menu to allocate GPU memory buffers for text rendering.",
+        "Without an Edit menu with standard roles, keyboard shortcuts like Cmd+C, Cmd+V, and Cmd+X do not work inside text inputs on macOS.",
+        "The macOS App Store automatically rejects apps that attach custom keyboard event listeners.",
+        "Without an Edit menu, right-click context menus cannot be rendered."
+      ],
+      "answerIndex": 1,
+      "marks": 1
+    },
+    {
+      "id": "q07",
+      "text": "How can an Electron main process detect and react to operating system dark mode and light mode changes?",
+      "options": [
+        "By polling window.matchMedia('(prefers-color-scheme: dark)') from the Node.js runtime",
+        "By reading process.env.MACOS_THEME on an interval",
+        "By listening to nativeTheme.on('updated') and checking nativeTheme.shouldUseDarkColors",
+        "Electron cannot inspect OS theme preferences without native C++ addons"
+      ],
+      "answerIndex": 2,
+      "marks": 1
+    },
+    {
+      "id": "q08",
+      "text": "When exporting sensitive data (such as exam audit logs or certificates) to disk in Electron, which approach is the security best practice?",
+      "options": [
+        "Enable nodeIntegration in the renderer and use the Node.js 'fs' module directly from UI button click handlers.",
+        "Send an export command over IPC to main, prompt the user with dialog.showSaveDialog, and write using fs.promises in the main process.",
+        "Generate a client-side data: URI anchor tag to trigger a silent download in the renderer.",
+        "Write the file directly into process.cwd() without path or permission checks."
+      ],
+      "answerIndex": 1,
+      "marks": 1
+    },
+    {
+      "id": "q09",
+      "text": "Where should an Electron application write persistent user configurations, logs, and local databases across app updates?",
+      "options": [
+        "Inside the application package directory (__dirname)",
+        "Directly in the operating system /tmp directory",
+        "In the designated path returned by app.getPath('userData')",
+        "In the system root directory /"
+      ],
+      "answerIndex": 2,
+      "marks": 1
+    },
+    {
+      "id": "q10",
+      "text": "Which statement is true regarding Electron's main-process `Notification` API?",
+      "options": [
+        "It renders floating HTML divs inside the active BrowserWindow DOM.",
+        "It displays native desktop notifications through the host operating system's notification center.",
+        "It requires Chromium's Web Notification permission prompt in the renderer.",
+        "It can only be invoked when the application window is running in fullscreen mode."
+      ],
+      "answerIndex": 1,
+      "marks": 1
+    },
+    {
+      "id": "q11",
+      "text": "When launching system CLI tools or background commands using Node's `child_process` in Electron, what is a critical security precaution?",
+      "options": [
+        "Always use child_process.exec() with string concatenation of untrusted inputs.",
+        "Prefer child_process.execFile() or spawn() with explicit argument arrays without a shell interpreter to prevent command injection.",
+        "child_process can only be invoked from web workers in the renderer.",
+        "Always execute spawned child processes with elevated root/sudo privileges."
+      ],
+      "answerIndex": 1,
+      "marks": 1
+    },
+    {
+      "id": "q12",
+      "text": "How can an Electron application intercept and restrict Chromium media and hardware device permission requests (e.g. webcam, microphone)?",
+      "options": [
+        "By disabling JavaScript in BrowserWindow webPreferences",
+        "By configuring session.defaultSession.setPermissionRequestHandler() and setPermissionCheckHandler() to inspect origin and permission types",
+        "By hiding navigator.mediaDevices using CSS rules in the renderer",
+        "Chromium permissions cannot be controlled by the Electron main process"
+      ],
+      "answerIndex": 1,
+      "marks": 1
+    },
+    {
+      "id": "q13",
+      "text": "What primary defense does a strict Content Security Policy (`script-src 'self'`) enforce in an Electron renderer process?",
+      "options": [
+        "It prevents Cross-Site Scripting (XSS) by blocking execution of untrusted inline scripts and external remote scripts.",
+        "It automatically minifies and compresses React component bundles.",
+        "It disables all modern CSS properties including Flexbox and Grid.",
+        "It encrypts IPC message payloads between the renderer and main process."
+      ],
+      "answerIndex": 0,
+      "marks": 1
+    },
+    {
+      "id": "q14",
+      "text": "What is the correct sequential order of Electron lifecycle events when an application is terminated?",
+      "options": [
+        "quit -> will-quit -> close -> before-quit",
+        "before-quit -> close (for each window) -> will-quit -> quit",
+        "close -> before-quit -> quit -> will-quit",
+        "will-quit -> before-quit -> close -> quit"
+      ],
+      "answerIndex": 1,
+      "marks": 1
+    },
+    {
+      "id": "q15",
+      "text": "When packaging an Electron desktop application for production with electron-builder, what purpose does an ASAR archive serve?",
+      "options": [
+        "An encrypted machine binary executed by the host CPU.",
+        "A read-only archive format that packages application source code into a single file to prevent long path issues on Windows and speed up reads.",
+        "A proprietary macOS code-signing certificate container.",
+        "An embedded Docker container runtime bundled inside the executable."
+      ],
+      "answerIndex": 1,
+      "marks": 1
+    }
+  ]
+}

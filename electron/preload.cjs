@@ -17,9 +17,15 @@ const CHANNELS = Object.freeze({
   // Exam domain
   EXAM_GET_STATE: 'exam:get-state',
   EXAM_COMMAND: 'exam:command',
+  EXAM_GET_QUESTIONS: 'exam:get-questions',
   EXAM_STATE_CHANGED: 'exam:state-changed',
   EXAM_TICK: 'exam:tick',
   EXAM_WARNING: 'exam:warning',
+
+  // Question bank domain
+  QUESTIONS_GET_ACTIVE: 'questions:get-active',
+  QUESTIONS_IMPORT: 'questions:import',
+  QUESTIONS_CHANGED: 'questions:changed',
 
   // Permissions domain
   PERMISSIONS_CAMERA_STATUS: 'permissions:camera-status',
@@ -74,10 +80,16 @@ contextBridge.exposeInMainWorld('argus', {
   },
   exam: {
     getState: () => invoke(CHANNELS.EXAM_GET_STATE),
+    getQuestions: () => invoke(CHANNELS.EXAM_GET_QUESTIONS),
     send: (type, payload) => invoke(CHANNELS.EXAM_COMMAND, { type, payload }),
     onState: (callback) => subscribe(CHANNELS.EXAM_STATE_CHANGED, callback),
     onTick: (callback) => subscribe(CHANNELS.EXAM_TICK, callback),
     onWarning: (callback) => subscribe(CHANNELS.EXAM_WARNING, callback),
+  },
+  questions: {
+    getActive: () => invoke(CHANNELS.QUESTIONS_GET_ACTIVE),
+    import: () => invoke(CHANNELS.QUESTIONS_IMPORT),
+    onChanged: (callback) => subscribe(CHANNELS.QUESTIONS_CHANGED, callback),
   },
   permissions: {
     cameraStatus: () => invoke(CHANNELS.PERMISSIONS_CAMERA_STATUS),

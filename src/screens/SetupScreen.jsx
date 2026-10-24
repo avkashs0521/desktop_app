@@ -1,9 +1,10 @@
 // src/screens/SetupScreen.jsx - Pre-exam verification, system readiness check, and camera preview
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { api } from '../api';
 
 /**
  * Setup and environmental readiness screen.
- * Displays candidate verification and webcam checks before allowing the exam to launch.
+ * Displays candidate verification, question bank summary, and webcam checks before allowing the exam to launch.
  */
 export default function SetupScreen({
   candidate,
@@ -19,8 +20,64 @@ export default function SetupScreen({
   checks = {},
 }) {
   const [starting, setStarting] = useState(false);
+  const [bankInfo, setBankInfo] = useState(null);
+  const [importError, setImportError] = useState(null);
+  const [importing, setImporting] = useState(false);
+
   const durationMinutes = Math.round(durationMs / 60000);
   const isCameraReady = Boolean(checks.camera);
+
+  // Load the active question bank summary on mount and subscribe to bank updates
+  useEffect(() => {
+    let mounted = true;
+
+    api.questions
+      .getActive()
+      .then((info) => {
+        if (mounted && info) {
+          setBankInfo(info);
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to retrieve active question bank:', err);
+      });
+
+    const unsubscribe = api.questions.onChanged((updated) => {
+      if (mounted && updated) {
+        setBankInfo(updated);
+      }
+    });
+
+    return () => {
+      mounted = false;
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    };
+  }, []);
+
+  const handleImportBank = async () => {
+    setImportError(null);
+    setImporting(true);
+    try {
+      const res = await api.questions.import();
+      if (res && res.ok) {
+        setBankInfo({
+          title: res.title,
+          count: res.count,
+          source: 'imported',
+          fileName: res.fileName,
+          hashShort: res.hashShort,
+        });
+      } else if (res && !res.canceled && res.errors) {
+        setImportError(res.errors.slice(0, 3).join('; '));
+      }
+    } catch (err) {
+      setImportError(err.message || 'Import failed.');
+    } finally {
+      setImporting(false);
+    }
+  };
 
   const handleStart = async () => {
     setStarting(true);
@@ -78,6 +135,49 @@ export default function SetupScreen({
           <div className="summary-item">
             <span className="summary-label">Allocated Duration</span>
             <span className="summary-value">{durationMinutes} Minutes</span>
+          </div>
+        </div>
+
+        {/* Question Bank Card */}
+        <div className="candidate-summary question-bank-card">
+          <div className="bank-card-header">
+            <h2 className="section-title">Question Bank</h2>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={handleImportBank}
+              disabled={importing}
+            >
+              {importing ? 'Importing…' : 'Import another bank…'}
+            </button>
+          </div>
+
+          {importError && (
+            <div className="error-banner" role="alert" style={{ gridColumn: '1 / -1' }}>
+              <span>{importError}</span>
+            </div>
+          )}
+
+          <div className="summary-item">
+            <span className="summary-label">Title</span>
+            <span className="summary-value">{bankInfo?.title || 'Loading…'}</span>
+          </div>
+          <div className="summary-item">
+            <span className="summary-label">Question Count</span>
+            <span className="summary-value">{bankInfo?.count ?? '—'} Questions</span>
+          </div>
+          <div className="summary-item">
+            <span className="summary-label">Source</span>
+            <span className="summary-value" style={{ textTransform: 'capitalize' }}>
+              {bankInfo?.source || 'default'}
+              {bankInfo?.fileName && bankInfo.source !== 'default' ? ` (${bankInfo.fileName})` : ''}
+            </span>
+          </div>
+          <div className="summary-item">
+            <span className="summary-label">Content Hash</span>
+            <span className="summary-value" style={{ fontFamily: 'monospace' }}>
+              {bankInfo?.hashShort ? `${bankInfo.hashShort}…` : '—'}
+            </span>
           </div>
         </div>
 

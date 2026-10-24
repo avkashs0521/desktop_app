@@ -1,5 +1,6 @@
-// src/screens/ExamScreen.jsx - Active exam assessment screen with question navigation and answer selection
-import { useState } from 'react';
+// src/screens/ExamScreen.jsx - Real MCQ exam assessment screen with palette, timer, and keyboard nav
+import { useState, useEffect } from 'react';
+import { api } from '../api';
 import { useRemainingTime } from '../hooks/useRemainingTime';
 import { formatDuration } from '../utils/formatTime';
 import WarningBanner from '../components/WarningBanner';
@@ -7,32 +8,27 @@ import WarningBanner from '../components/WarningBanner';
 /**
  * Active examination screen.
  *
- * Displays:
- * - A question sidebar navigator with answered/review/unanswered states
- * - The current question with four option radio buttons
- * - A bottom navigation bar (Previous / Next) and a Submit Exam button
- * - The drift-free countdown timer from the main process
- * - Low-time warning banners from WarningBanner
- *
- * All answer saving and review toggling are dispatched through the exam
- * state machine command `SAVE_ANSWER` and `TOGGLE_REVIEW` via the `send` prop.
+ * Architecture rules:
+ * - Questions are loaded once from the main process via api.exam.getQuestions() on mount (and on reload).
+ * - currentIndex is the ONLY exam-related state owned by React.
+ * - answers and review flags are strictly read from the main process state (single source of truth).
+ * - question.id is used as the React key, never the array index.
+ * - Left/Right arrow keys navigate between questions.
  *
  * @param {Object} props
  * @param {string} props.examTitle
- * @param {number} props.durationMs - Initial duration for fallback display
+ * @param {number} props.durationMs
  * @param {Object} props.candidate
- * @param {Array}  props.questions - Shuffled question array from exam state
- * @param {Object} props.answers   - Map of { questionId: optionIndex }
- * @param {Array}  props.review    - Array of flagged question IDs
+ * @param {Object} props.answers   - Single-source map of { [questionId]: optionIndex }
+ * @param {Array}  props.review    - Single-source array of flagged question IDs
  * @param {Function} props.onSubmit
- * @param {Function} props.send    - State machine dispatcher from useExamState
+ * @param {Function} props.send    - ExamStore command dispatcher
  * @param {string|null} props.error
  */
 export default function ExamScreen({
   examTitle,
   durationMs,
   candidate,
-  questions = [],
   answers = {},
   review = [],
   onSubmit,
@@ -40,34 +36,86 @@ export default function ExamScreen({
   error,
 }) {
   const remainingMs = useRemainingTime(durationMs);
+  const [questions, setQuestions] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [submitting, setSubmitting] = useState(false);
 
-  const currentQuestion = questions[currentIndex];
-  const totalQuestions = questions.length;
+  // Load questions once when phase becomes in_progress (and again after window reload)
+  useEffect(() => {
+    let mounted = true;
 
-  // Derived counts for the top status bar
+    api.exam
+      .getQuestions()
+      .then((data) => {
+        if (mounted && Array.isArray(data)) {
+          setQuestions(data);
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to load exam questions from main process:', err);
+      })
+      .finally(() => {
+        if (mounted) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const totalQuestions = questions.length;
+  const currentQuestion = questions[currentIndex];
+
+  // Arrow key navigation between questions
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.target.tagName === 'INPUT' && e.target.type === 'text') return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      if (e.key === 'ArrowLeft') {
+        setCurrentIndex((i) => Math.max(0, i - 1));
+      } else if (e.key === 'ArrowRight') {
+        setCurrentIndex((i) => Math.min(totalQuestions - 1, i + 1));
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [totalQuestions]);
+
+  // Derived progress statistics
   const answeredCount = Object.keys(answers).length;
   const reviewCount = review.length;
   const unansweredCount = totalQuestions - answeredCount;
 
-  // Remaining time urgency for visual cue (less than 5 minutes)
+  // Countdown timer turns red under 5 minutes (300,000 ms)
   const isLowTime = remainingMs > 0 && remainingMs < 5 * 60 * 1000;
   const isCriticalTime = remainingMs > 0 && remainingMs < 60 * 1000;
 
-  /** Handle selecting an option: dispatches SAVE_ANSWER to main process */
+  /** Save answer selection to main process */
   const handleSelectOption = (optionIndex) => {
     if (!currentQuestion) return;
     send('SAVE_ANSWER', { questionId: currentQuestion.id, optionIndex }).catch(() => {});
   };
 
-  /** Handle toggling the review flag for the current question */
+  /** Clear answer response (SAVE_ANSWER with optionIndex null) */
+  const handleClearResponse = () => {
+    if (!currentQuestion) return;
+    send('SAVE_ANSWER', { questionId: currentQuestion.id, optionIndex: null }).catch(() => {});
+  };
+
+  /** Toggle review flag */
   const handleToggleReview = () => {
     if (!currentQuestion) return;
     send('TOGGLE_REVIEW', { questionId: currentQuestion.id }).catch(() => {});
   };
 
-  /** Handle exam submission: dispatches SUBMIT_EXAM which triggers the native confirmation dialog */
+  /** Confirmed submission */
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
@@ -79,27 +127,42 @@ export default function ExamScreen({
     }
   };
 
-  /** Get the visual state class for a sidebar question pill */
+  /** Builds CSS class for question palette buttons */
   const getPillClass = (q, idx) => {
-    const isActive = idx === currentIndex;
+    const isCurrent = idx === currentIndex;
     const isAnswered = answers[q.id] !== undefined;
     const isReview = review.includes(q.id);
 
-    if (isActive) return 'q-pill q-pill--active';
-    if (isReview) return 'q-pill q-pill--review';
-    if (isAnswered) return 'q-pill q-pill--answered';
-    return 'q-pill q-pill--unanswered';
+    let cls = 'q-pill';
+    if (isAnswered) cls += ' q-pill--answered';
+    if (isReview) cls += ' q-pill--review';
+    if (!isAnswered && !isReview) cls += ' q-pill--unanswered';
+    if (isCurrent) cls += ' q-pill--current';
+
+    return cls;
   };
+
+  if (loading) {
+    return (
+      <div className="screen-container">
+        <div className="card exam-card">
+          <p className="screen-subtitle">Loading assessment questions…</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!currentQuestion) {
     return (
       <div className="screen-container">
         <div className="card exam-card">
-          <p className="screen-subtitle">No questions available.</p>
+          <p className="screen-subtitle">No questions available in the current question bank.</p>
         </div>
       </div>
     );
   }
+
+  const marks = typeof currentQuestion.marks === 'number' ? currentQuestion.marks : 1;
 
   return (
     <div
@@ -109,10 +172,10 @@ export default function ExamScreen({
       onCut={(e) => e.preventDefault()}
       onPaste={(e) => e.preventDefault()}
     >
-      {/* ── Warning banner rendered at the top of the exam screen ── */}
+      {/* Warning banner rendered at top of exam screen */}
       <WarningBanner />
 
-      {/* ── Top header bar ── */}
+      {/* ── Top Header Bar ── */}
       <header className="exam-header-bar">
         <div className="exam-header-left">
           <span className="brand-badge">Session In Progress</span>
@@ -131,7 +194,7 @@ export default function ExamScreen({
             <span className="exam-progress-badge review-badge">{reviewCount} flagged</span>
           )}
 
-          {/* Countdown timer */}
+          {/* Countdown timer (turns red under 5 minutes) */}
           <div
             className={`timer-box ${isLowTime ? 'timer-box--warning' : ''} ${isCriticalTime ? 'timer-box--critical' : ''}`}
             aria-label="Remaining Exam Time"
@@ -139,12 +202,22 @@ export default function ExamScreen({
             <span className="timer-label">Time</span>
             <span className="timer-countdown">{formatDuration(remainingMs)}</span>
           </div>
+
+          {/* Submit button in header */}
+          <button
+            type="button"
+            className="btn btn-danger btn-sm"
+            onClick={handleSubmit}
+            disabled={submitting}
+          >
+            {submitting ? 'Submitting…' : 'Submit Exam'}
+          </button>
         </div>
       </header>
 
-      {/* ── Main two-column layout: sidebar + question panel ── */}
+      {/* ── Main Two-Column Layout: Question Palette + Question Panel ── */}
       <div className="exam-body">
-        {/* Left sidebar: question grid navigator */}
+        {/* Left sidebar: Question Palette */}
         <aside className="exam-sidebar">
           <p className="sidebar-heading">Questions</p>
           <div className="q-grid">
@@ -154,7 +227,7 @@ export default function ExamScreen({
                 type="button"
                 className={getPillClass(q, idx)}
                 onClick={() => setCurrentIndex(idx)}
-                title={`Question ${idx + 1}${review.includes(q.id) ? ' (Flagged)' : ''}`}
+                title={`Question ${idx + 1}${review.includes(q.id) ? ' (Flagged)' : ''}${answers[q.id] !== undefined ? ' (Answered)' : ''}`}
                 aria-current={idx === currentIndex ? 'true' : undefined}
               >
                 {idx + 1}
@@ -162,15 +235,15 @@ export default function ExamScreen({
             ))}
           </div>
 
-          {/* Sidebar legend */}
+          {/* Palette legend */}
           <div className="sidebar-legend">
             <span className="legend-item"><span className="legend-dot dot--answered" />Answered</span>
-            <span className="legend-item"><span className="legend-dot dot--review" />Flagged</span>
+            <span className="legend-item"><span className="legend-dot dot--review" />Marked for review</span>
             <span className="legend-item"><span className="legend-dot dot--unanswered" />Not answered</span>
           </div>
         </aside>
 
-        {/* Right panel: current question card */}
+        {/* Right panel: Active Question Card */}
         <section className="exam-question-panel">
           {error && (
             <div className="error-banner" role="alert">
@@ -178,30 +251,45 @@ export default function ExamScreen({
             </div>
           )}
 
-          <div className="question-card">
-            {/* Question number and flag button */}
+          <div className="question-card" key={currentQuestion.id}>
+            {/* Question header: meta and question actions */}
             <div className="question-meta">
-              <span className="question-number">Question {currentIndex + 1} of {totalQuestions}</span>
-              <button
-                type="button"
-                className={`review-btn ${review.includes(currentQuestion.id) ? 'review-btn--active' : ''}`}
-                onClick={handleToggleReview}
-                title={review.includes(currentQuestion.id) ? 'Remove flag' : 'Flag for review'}
-              >
-                {review.includes(currentQuestion.id) ? '🚩 Flagged' : '⚑ Flag for review'}
-              </button>
+              <span className="question-number">
+                Question {currentIndex + 1} of {totalQuestions} · {marks} mark{marks > 1 ? 's' : ''}
+              </span>
+
+              <div className="question-item-actions">
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={handleClearResponse}
+                  disabled={answers[currentQuestion.id] === undefined}
+                  title="Clear selected option for this question"
+                >
+                  Clear response
+                </button>
+
+                <button
+                  type="button"
+                  className={`review-btn ${review.includes(currentQuestion.id) ? 'review-btn--active' : ''}`}
+                  onClick={handleToggleReview}
+                  title={review.includes(currentQuestion.id) ? 'Remove review flag' : 'Mark question for review'}
+                >
+                  {review.includes(currentQuestion.id) ? '🚩 Flagged' : '⚑ Mark for review'}
+                </button>
+              </div>
             </div>
 
             {/* Question text */}
             <p className="question-text">{currentQuestion.text}</p>
 
-            {/* Options */}
+            {/* Options list as large radio cards */}
             <div className="options-list" role="radiogroup" aria-label={`Options for question ${currentIndex + 1}`}>
               {currentQuestion.options.map((optionText, optIdx) => {
                 const isSelected = answers[currentQuestion.id] === optIdx;
                 return (
                   <label
-                    key={optIdx}
+                    key={`${currentQuestion.id}-opt-${optIdx}`}
                     className={`option-label ${isSelected ? 'option-label--selected' : ''}`}
                   >
                     <input
@@ -251,10 +339,10 @@ export default function ExamScreen({
               )}
             </div>
 
-            {/* Unanswered warning below nav when showing submit on last question */}
+            {/* Unanswered count notice below nav */}
             {currentIndex === totalQuestions - 1 && unansweredCount > 0 && (
               <p className="unanswered-note">
-                ⚠ {unansweredCount} question{unansweredCount > 1 ? 's' : ''} unanswered. You can still go back.
+                ⚠ {unansweredCount} question{unansweredCount > 1 ? 's' : ''} unanswered. You can still navigate back.
               </p>
             )}
           </div>

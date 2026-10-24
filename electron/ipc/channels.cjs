@@ -13,9 +13,15 @@ const CHANNELS = Object.freeze({
   // Exam domain
   EXAM_GET_STATE: 'exam:get-state', // invoke → public state
   EXAM_COMMAND: 'exam:command', // invoke { type, payload } → public state
+  EXAM_GET_QUESTIONS: 'exam:get-questions', // invoke → public questions (without answerIndex)
   EXAM_STATE_CHANGED: 'exam:state-changed', // main → renderer push: public state
   EXAM_TICK: 'exam:tick',    // main → renderer push: { remainingMs: number }
   EXAM_WARNING: 'exam:warning', // main → renderer push: { minutesLeft: number }
+
+  // Question bank domain
+  QUESTIONS_GET_ACTIVE: 'questions:get-active', // invoke → { title, count, source, fileName, hashShort }
+  QUESTIONS_IMPORT: 'questions:import', // invoke → result of importBank
+  QUESTIONS_CHANGED: 'questions:changed', // main → renderer push: { title, count, source, fileName, hashShort }
 
   // Permissions domain
   PERMISSIONS_CAMERA_STATUS: 'permissions:camera-status', // invoke → { status: string }

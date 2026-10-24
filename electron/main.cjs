@@ -84,6 +84,11 @@ examStore.on('change', (state) => {
   sendToRenderer(CHANNELS.EXAM_STATE_CHANGED, state);
 });
 
+// Push question bank updates to the renderer
+examStore.on('bank-changed', (bankSummary) => {
+  sendToRenderer(CHANNELS.QUESTIONS_CHANGED, bankSummary);
+});
+
 // State-driven application menu:
 // Update the native menu whenever the exam phase changes (e.g. disable clipboard and minimize in 'in_progress')
 Menu.setApplicationMenu(buildMenu(examStore.state));
