@@ -1,56 +1,94 @@
-// src/App.jsx - Argus welcome screen and environment status display
-import { useState, useEffect } from 'react';
+// src/App.jsx - Main application coordinator routing screens by exam phase
 import TitleBar from './components/TitleBar';
-import { api, isElectron } from './api';
+import { useExamState } from './hooks/useExamState';
+import { isElectron } from './api';
+import WelcomeScreen from './screens/WelcomeScreen';
+import SetupScreen from './screens/SetupScreen';
+import ExamScreen from './screens/ExamScreen';
+import ResultScreen from './screens/ResultScreen';
 
 /**
- * Main application component for Argus.
- * Renders the custom title bar and welcome card with runtime environment details.
+ * Main application coordinator.
+ * Reads single-source-of-truth exam state from the main process and renders the matching screen.
+ * Strictly no exam state is retained in React.
  */
 export default function App() {
-  const [appInfo, setAppInfo] = useState(null);
+  const { state, send, error } = useExamState();
 
-  useEffect(() => {
-    let mounted = true;
+  if (!isElectron) {
+    return (
+      <>
+        <TitleBar />
+        <div className="screen-container">
+          <div className="card welcome-card">
+            <span className="brand-badge">macOS Exam Client</span>
+            <h1 className="screen-title">Argus Desktop</h1>
+            <p className="screen-subtitle">This examination client requires the secure Electron desktop runtime.</p>
+            <div className="status-badge">
+              <span className="status-indicator" />
+              <span>Running in a browser</span>
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
 
-    if (isElectron) {
-      api.app
-        .getInfo()
-        .then((info) => {
-          if (mounted && info) {
-            setAppInfo(info);
-          }
-        })
-        .catch((err) => {
-          console.error('Failed to retrieve app info in App component:', err);
-        });
-    }
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  const statusText = isElectron
-    ? appInfo
-      ? `Running inside Electron ${appInfo.electronVersion || appInfo.version} on ${appInfo.platform}`
-      : 'Running inside Electron...'
-    : 'Running in a browser';
+  if (!state) {
+    return (
+      <>
+        <TitleBar />
+        <div className="screen-container">
+          <div className="card welcome-card">
+            <h1 className="screen-title">Argus</h1>
+            <p className="screen-subtitle">Initializing secure assessment environment...</p>
+          </div>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
       <TitleBar />
-      <div className="app-container">
-        <main className="welcome-card">
-          <span className="brand-badge">macOS Exam Client</span>
-          <h1 className="app-title">Argus</h1>
-          <p className="app-subtitle">Secure exam desktop app</p>
-          <div className="status-badge">
-            <span className="status-indicator" />
-            <span>{statusText}</span>
-          </div>
-        </main>
-      </div>
+      <main className="main-content">
+        {state.phase === 'welcome' && (
+          <WelcomeScreen
+            candidate={state.candidate}
+            onRegister={(candidate) => send('REGISTER_CANDIDATE', candidate)}
+            error={error?.message}
+          />
+        )}
+
+        {state.phase === 'setup' && (
+          <SetupScreen
+            candidate={state.candidate}
+            examTitle={state.examTitle}
+            durationMs={state.durationMs}
+            onStart={() => send('START_EXAM')}
+            onBack={() => send('RESET')}
+            error={error?.message}
+          />
+        )}
+
+        {state.phase === 'in_progress' && (
+          <ExamScreen
+            examTitle={state.examTitle}
+            durationMs={state.durationMs}
+            endsAt={state.endsAt}
+            candidate={state.candidate}
+            onSubmit={() => send('SUBMIT_EXAM')}
+            error={error?.message}
+          />
+        )}
+
+        {(state.phase === 'submitted' || state.phase === 'terminated') && (
+          <ResultScreen
+            state={state}
+            onReset={() => send('RESET')}
+          />
+        )}
+      </main>
     </>
   );
 }

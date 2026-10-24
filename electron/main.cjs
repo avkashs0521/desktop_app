@@ -1,7 +1,10 @@
 // electron/main.cjs - Application entry point and lifecycle manager for Argus
 const { app, BrowserWindow } = require('electron');
-const { createMainWindow } = require('./window.cjs');
+const { createMainWindow, sendToRenderer } = require('./window.cjs');
 const { registerIpcHandlers } = require('./ipc/register.cjs');
+const { appScope } = require('./core/lifecycle.cjs');
+const { examStore } = require('./core/examStore.cjs');
+const { CHANNELS } = require('./ipc/channels.cjs');
 
 // Module-level reference to prevent garbage collection from closing the window prematurely
 let mainWindow = null;
@@ -9,6 +12,11 @@ let mainWindow = null;
 // Register all IPC contract handlers once before the window is created
 registerIpcHandlers({
   getMainWindow: () => mainWindow,
+});
+
+// Push state changes to the renderer whenever the exam store updates
+examStore.on('change', (state) => {
+  sendToRenderer(CHANNELS.EXAM_STATE_CHANGED, state);
 });
 
 // Initialize the main application window once Electron has finished initialization
@@ -33,4 +41,9 @@ app.on('activate', () => {
 // macOS apps normally keep running with no windows, but an exam app should fully exit
 app.on('window-all-closed', () => {
   app.quit();
+});
+
+// Clean up all resources tracked in the application lifecycle scope
+app.on('will-quit', () => {
+  appScope.dispose();
 });

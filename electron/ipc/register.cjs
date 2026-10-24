@@ -116,6 +116,25 @@ function registerIpcHandlers({ getMainWindow }) {
     }
     return null;
   });
+
+  // ==========================================
+  // Exam Domain Handlers
+  // ==========================================
+  handle(CHANNELS.EXAM_GET_STATE, async () => {
+    const { examStore } = require('../core/examStore.cjs');
+    return examStore.getPublicState();
+  });
+
+  handle(CHANNELS.EXAM_COMMAND, async (payload) => {
+    const { examStore } = require('../core/examStore.cjs');
+    const { type, payload: commandPayload } = payload || {};
+    if (!type || typeof type !== 'string') {
+      const err = new Error('exam:command requires a valid command type string.');
+      err.code = 'VALIDATION';
+      throw err;
+    }
+    return await examStore.dispatch(type, { source: 'renderer', payload: commandPayload });
+  });
 }
 
 module.exports = {

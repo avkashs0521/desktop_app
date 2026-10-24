@@ -43,4 +43,20 @@ export const api = {
       return window.argus.window.onState(callback);
     },
   },
+  exam: {
+    getState: () => (isElectron ? unwrap(window.argus.exam.getState()) : ensureDesktop()),
+    send: (type, payload) => (isElectron ? unwrap(window.argus.exam.send(type, payload)) : ensureDesktop()),
+    onState: (callback) => {
+      if (!isElectron) {
+        return () => {};
+      }
+      return window.argus.exam.onState(callback);
+    },
+    onTick: (callback) => {
+      if (!isElectron) {
+        return () => {};
+      }
+      return window.argus.exam.onTick(callback);
+    },
+  },
 };

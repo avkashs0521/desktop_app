@@ -1,0 +1,21 @@
+{
+  "title": "Application Development — Desktop Assessment",
+  "durationMinutes": 30,
+  "maxViolations": 5,
+  "warningMinutes": [10, 5, 1],
+  "snapshotIntervalSeconds": 10,
+  "processScanIntervalSeconds": 15,
+  "shuffleQuestions": true,
+  "blockedApps": [
+    "discord",
+    "zoom.us",
+    "microsoft teams",
+    "whatsapp",
+    "telegram",
+    "anydesk",
+    "teamviewer",
+    "obs",
+    "slack",
+    "skype"
+  ]
+}

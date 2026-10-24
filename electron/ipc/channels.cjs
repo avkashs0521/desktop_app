@@ -9,6 +9,12 @@ const CHANNELS = Object.freeze({
   WINDOW_TOGGLE_MAXIMIZE: 'window:toggle-maximize',
   WINDOW_CLOSE: 'window:close',
   WINDOW_STATE: 'window:state', // main → renderer push: { isMaximized: boolean, isFullScreen: boolean }
+
+  // Exam domain
+  EXAM_GET_STATE: 'exam:get-state', // invoke → public state
+  EXAM_COMMAND: 'exam:command', // invoke { type, payload } → public state
+  EXAM_STATE_CHANGED: 'exam:state-changed', // main → renderer push: public state
+  EXAM_TICK: 'exam:tick', // main → renderer push: { remainingMs: number }
 });
 
 module.exports = { CHANNELS };

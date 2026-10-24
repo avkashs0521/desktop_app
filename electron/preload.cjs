@@ -13,6 +13,12 @@ const CHANNELS = Object.freeze({
   WINDOW_TOGGLE_MAXIMIZE: 'window:toggle-maximize',
   WINDOW_CLOSE: 'window:close',
   WINDOW_STATE: 'window:state',
+
+  // Exam domain
+  EXAM_GET_STATE: 'exam:get-state',
+  EXAM_COMMAND: 'exam:command',
+  EXAM_STATE_CHANGED: 'exam:state-changed',
+  EXAM_TICK: 'exam:tick',
 });
 
 /**
@@ -59,5 +65,11 @@ contextBridge.exposeInMainWorld('argus', {
     toggleMaximize: () => invoke(CHANNELS.WINDOW_TOGGLE_MAXIMIZE),
     close: () => invoke(CHANNELS.WINDOW_CLOSE),
     onState: (callback) => subscribe(CHANNELS.WINDOW_STATE, callback),
+  },
+  exam: {
+    getState: () => invoke(CHANNELS.EXAM_GET_STATE),
+    send: (type, payload) => invoke(CHANNELS.EXAM_COMMAND, { type, payload }),
+    onState: (callback) => subscribe(CHANNELS.EXAM_STATE_CHANGED, callback),
+    onTick: (callback) => subscribe(CHANNELS.EXAM_TICK, callback),
   },
 });
