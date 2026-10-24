@@ -16,19 +16,26 @@ import ResultScreen from './screens/ResultScreen';
  */
 export default function App() {
   const { state, send, error } = useExamState();
-  const camera = useCamera({ phase: state?.phase, send });
+  const {
+    videoRef,
+    status: cameraStatus,
+    error: cameraError,
+    start: startCamera,
+    stop: stopCamera,
+    openSettings,
+  } = useCamera({ phase: state?.phase, send });
   const cameraFrameRef = useRef(null);
 
   // Turn off the camera when the exam concludes (submitted or terminated)
   useEffect(() => {
     if (state?.phase === 'submitted' || state?.phase === 'terminated') {
-      camera.stop();
+      stopCamera();
     }
-  }, [state?.phase, camera]);
+  }, [state?.phase, stopCamera]);
 
   // Dynamically position the persistent camera overlay to match the 320x240 placeholder in SetupScreen
   useEffect(() => {
-    if (state?.phase === 'setup' && camera.status === 'on') {
+    if (state?.phase === 'setup' && cameraStatus === 'on') {
       const updatePosition = () => {
         const placeholder = document.getElementById('setup-camera-placeholder');
         if (placeholder && cameraFrameRef.current) {
@@ -46,7 +53,7 @@ export default function App() {
         window.removeEventListener('resize', updatePosition);
       };
     }
-  }, [state?.phase, camera.status]);
+  }, [state?.phase, cameraStatus]);
 
   if (!isElectron) {
     return (
@@ -81,9 +88,11 @@ export default function App() {
     );
   }
 
+  const setupError = error?.code === 'CANCELLED' ? null : error?.message;
+
   return (
     <>
-      <TitleBar />
+      <TitleBar phase={state.phase} />
       <main className="main-content">
         {state.phase === 'welcome' && (
           <WelcomeScreen
@@ -98,13 +107,13 @@ export default function App() {
             candidate={state.candidate}
             examTitle={state.examTitle}
             durationMs={state.durationMs}
-            onStart={() => send('START_EXAM')}
+            onStart={() => send('START_EXAM').catch(() => {})}
             onBack={() => send('RESET')}
-            error={error?.message}
-            cameraStatus={camera.status}
-            cameraError={camera.error}
-            onEnableCamera={camera.start}
-            onOpenSettings={camera.openSettings}
+            error={setupError}
+            cameraStatus={cameraStatus}
+            cameraError={cameraError}
+            onEnableCamera={startCamera}
+            onOpenSettings={openSettings}
             checks={state.checks}
           />
         )}
@@ -118,9 +127,9 @@ export default function App() {
             questions={state.questions || []}
             answers={state.answers || {}}
             review={state.review || []}
-            onSubmit={() => send('SUBMIT_EXAM')}
+            onSubmit={() => send('SUBMIT_EXAM').catch(() => {})}
             send={send}
-            error={error?.message}
+            error={setupError}
           />
         )}
 
@@ -135,11 +144,11 @@ export default function App() {
       {/* Persistent Proctor Camera (kept mounted across setup -> exam to preserve hardware stream) */}
       <div
         ref={cameraFrameRef}
-        className={`persistent-camera-frame mode-${state.phase} status-${camera.status}`}
-        aria-hidden={camera.status !== 'on' || state.phase === 'welcome' || state.phase === 'submitted' || state.phase === 'terminated'}
+        className={`persistent-camera-frame mode-${state.phase} status-${cameraStatus}`}
+        aria-hidden={cameraStatus !== 'on' || state.phase === 'welcome' || state.phase === 'submitted' || state.phase === 'terminated'}
       >
         <video
-          ref={camera.videoRef}
+          ref={videoRef}
           autoPlay
           playsInline
           muted

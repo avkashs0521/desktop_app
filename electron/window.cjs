@@ -103,7 +103,12 @@ function createMainWindow() {
   return mainWindow;
 }
 
+function getActiveWindow() {
+  return activeWindow;
+}
+
 module.exports = {
   createMainWindow,
   sendToRenderer,
+  getActiveWindow,
 };

@@ -226,7 +226,55 @@ Calls failing this validation are rejected immediately with error code `'FORBIDD
 
 ---
 
-## 9. Commit Log
+## 9. Lockdown Architecture & Quit Lifecycle
+
+### Lockdown APIs (`electron/services/lockdown.cjs`)
+During active assessment (`in_progress`), Argus engages OS-level lockdown via four complementary Electron APIs:
+
+| API | What It Does | Why Argus Uses It | What It Cannot Stop |
+| :--- | :--- | :--- | :--- |
+| `win.setKiosk(true)` | Activates macOS native kiosk mode. Completely hides the Dock, system menu bar, and blocks standard application switching (Cmd+Tab). | Confines the candidate to the exam environment and prevents launching or switching to auxiliary tools. | Hard reboot, power button, OS kernel panic. |
+| `win.setAlwaysOnTop(true, 'screen-saver')` | Elevates window level to the macOS `screen-saver` tier (highest window level). | Keeps Argus visible above system notifications, auxiliary popups, and other full-screen windows. | Hardware display switching or physical monitor disconnect. |
+| `win.setContentProtection(true)` | Enforces macOS window capture protection at the compositor layer. | Any screen capture or recording tool (Cmd+Shift+4, OBS, Zoom, Teams, AirPlay) renders a solid black rectangle instead of exam questions. | External cameras pointing at the physical screen (mitigated by proctor camera monitoring). |
+| `powerSaveBlocker.start('prevent-display-sleep')` | Tells macOS power management to inhibit display sleep. | Prevents the display from turning off or locking due to candidate inactivity while reading questions. | Battery running out (hardware power loss). |
+
+### What Lockdown Cannot Stop
+Software-level desktop lockdown cannot intercept hardware events (e.g. holding the physical power button, pulling the power cable, unplugging external displays) or OS kernel-level emergency interrupts (e.g. Force Quit via Cmd+Option+Esc). These edge cases are monitored via proactive proctoring (webcam feed, process scanning, and anomaly audit logging).
+
+### Single Instance Enforcement
+`app.requestSingleInstanceLock()` runs at the very top of `electron/main.cjs`. If another instance attempts to launch, the secondary process immediately calls `app.quit()`, and the primary process catches the `second-instance` event to restore and focus the existing window.
+
+### State-Driven Application Menu (`electron/menu.cjs`)
+A dynamic menu is built using `Menu.buildFromTemplate()` and rebound whenever `examStore` emits a `phase` transition:
+- **macOS App Menu**: Includes About, Hide, and Quit Argus (CmdOrCtrl+Q).
+- **Edit Menu**: Provides standard undo/redo/cut/copy/paste/selectAll. **Essential on macOS:** without an Edit menu, keyboard shortcuts (Cmd+C, Cmd+V) fail in input fields. During `in_progress`, cut, copy, and paste are strictly disabled.
+- **Window Menu**: Minimize is disabled during `in_progress`.
+- **Help Menu**: Provides an info-only Exam Rules dialog.
+
+### Electron Quit Lifecycle
+The quit sequence follows a deterministic event order:
+1. `before-quit` (app) — Emitted first when `app.quit()` or Cmd+Q is invoked. Can be intercepted with `event.preventDefault()`.
+2. `close` (BrowserWindow) — Emitted on each window before it closes. Can also be intercepted with `event.preventDefault()`.
+3. `will-quit` (app) — Emitted after all windows have closed and quit is irreversible. Used for disposing `appScope`.
+4. `quit` (app) — Final event emitted as Electron exits.
+
+**Lifecycle Flow for Cmd+Q during an exam:**
+1. Candidate presses Cmd+Q → triggers `app.quit()`.
+2. App receives `before-quit`. Handler checks `!allowQuit && phase === 'in_progress'`.
+3. Handler calls `event.preventDefault()` to stop termination and opens `confirmQuitDuringExam()`.
+4. If candidate selects **"Keep working"**, dialog closes and the candidate remains in the exam.
+5. If candidate selects **"Submit and quit"**:
+   - `examStore.dispatch('SUBMIT_EXAM', { source: 'main', payload: { reason: 'quit' } })` is executed.
+   - Answers are graded, phase transitions to `submitted`, `examScope` disposes, and lockdown reverses.
+   - `allowQuit` flag is set to `true`.
+   - `app.quit()` is re-invoked.
+   - `before-quit` fires again (bypassed since `allowQuit === true`).
+   - Window `close` fires (bypassed).
+   - Window closes, `will-quit` fires (cleans `appScope`), and `quit` terminates the process.
+
+---
+
+## 10. Commit Log
 
 - **Commit 1: chore: scaffold Electron + React + Vite desktop app**
   - Cloned repository and verified Node 20+ runtime.
@@ -269,3 +317,15 @@ Calls failing this validation are rejected immediately with error code `'FORBIDD
   - Built `src/components/WarningBanner.jsx` — dismissible, colour-coded alert (caution/urgent) with auto-dismiss and flash animation.
   - Rebuilt `src/screens/ExamScreen.jsx` with full Q&A UI: sidebar question grid navigator, option radio cards, review flag, Prev/Next nav, submit confirmation modal, and low-time visual cues.
   - Updated `src/screens/ResultScreen.jsx` to display score card with colour-coded pass/warn/fail styling.
+
+- **Commit 6: feat(lockdown): rules dialog, kiosk mode, app menu and quit guard**
+  - Implemented `electron/services/lockdown.cjs` with `showRulesDialog`, `enter`, `exit`, `showSubmitConfirm`, and `showRulesInfo`.
+  - Added native exam rules acknowledgement sheet dialog with required checkbox confirmation prior to entering assessment.
+  - Enabled macOS kiosk mode (`setKiosk`), screen-saver window tier (`setAlwaysOnTop`), black screenshot protection (`setContentProtection`), and display-sleep blocker (`powerSaveBlocker`).
+  - Added lifecycle scope cleanup (`scope.track(() => exit(win))`) reversing all lockdown settings when leaving `in_progress`.
+  - Patched `START_EXAM` in `examStore.cjs` to show rules dialog and enter lockdown, staying on `setup` with no error banner if cancelled.
+  - Patched `SUBMIT_EXAM` to require native confirmation dialog from renderer with cancel support, while accepting `main`-process submissions with reason (`quit`).
+  - Built `electron/menu.cjs` with state-driven application menu, disabling cut/copy/paste and minimize during active exams, and configuring macOS About panel.
+  - Added single instance lock (`app.requestSingleInstanceLock()`) focusing existing window on second launch.
+  - Added robust quit guard (`confirmQuitDuringExam()`) intercepting `before-quit` and window `close` events during exams.
+  - Updated `TitleBar` to hide controls and `ExamScreen` to prevent context menus and clipboard events during assessment.

@@ -42,7 +42,6 @@ export default function ExamScreen({
   const remainingMs = useRemainingTime(durationMs);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [submitting, setSubmitting] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
 
   const currentQuestion = questions[currentIndex];
   const totalQuestions = questions.length;
@@ -68,14 +67,13 @@ export default function ExamScreen({
     send('TOGGLE_REVIEW', { questionId: currentQuestion.id }).catch(() => {});
   };
 
-  /** Confirmed submission: dispatch SUBMIT_EXAM to main process */
+  /** Handle exam submission: dispatches SUBMIT_EXAM which triggers the native confirmation dialog */
   const handleSubmit = async () => {
-    setShowConfirm(false);
     setSubmitting(true);
     try {
       await onSubmit();
     } catch {
-      // Error surfaces via the error prop from useExamState
+      // Cancellation handled gracefully without error banner
     } finally {
       setSubmitting(false);
     }
@@ -104,7 +102,13 @@ export default function ExamScreen({
   }
 
   return (
-    <div className="screen-container exam-screen-layout">
+    <div
+      className="screen-container exam-screen-layout"
+      onContextMenu={(e) => e.preventDefault()}
+      onCopy={(e) => e.preventDefault()}
+      onCut={(e) => e.preventDefault()}
+      onPaste={(e) => e.preventDefault()}
+    >
       {/* ── Warning banner rendered at the top of the exam screen ── */}
       <WarningBanner />
 
@@ -239,7 +243,7 @@ export default function ExamScreen({
                 <button
                   type="button"
                   className="btn btn-danger"
-                  onClick={() => setShowConfirm(true)}
+                  onClick={handleSubmit}
                   disabled={submitting}
                 >
                   {submitting ? 'Submitting…' : 'Submit Exam'}
@@ -256,37 +260,6 @@ export default function ExamScreen({
           </div>
         </section>
       </div>
-
-      {/* ── Confirmation modal overlay ── */}
-      {showConfirm && (
-        <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
-          <div className="modal-card">
-            <h2 id="confirm-title" className="modal-title">Submit Exam?</h2>
-            <p className="modal-body">
-              You have answered {answeredCount} of {totalQuestions} questions.
-              {unansweredCount > 0 && ` ${unansweredCount} question${unansweredCount > 1 ? 's are' : ' is'} unanswered.`}
-              {' '}This action cannot be undone.
-            </p>
-            <div className="modal-actions">
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={() => setShowConfirm(false)}
-              >
-                Go back
-              </button>
-              <button
-                type="button"
-                className="btn btn-danger"
-                onClick={handleSubmit}
-                disabled={submitting}
-              >
-                {submitting ? 'Submitting…' : 'Confirm Submit'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

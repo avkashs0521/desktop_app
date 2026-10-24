@@ -84,6 +84,11 @@ function registerIpcHandlers({ getMainWindow }) {
   // Window Control Handlers
   // ==========================================
   handle(CHANNELS.WINDOW_MINIMIZE, async () => {
+    const { examStore } = require('../core/examStore.cjs');
+    // Minimize is refused while an exam is in progress
+    if (examStore.state.phase === 'in_progress') {
+      return null;
+    }
     const win = getMainWindow();
     if (win && !win.isDestroyed()) {
       win.minimize();
@@ -104,6 +109,11 @@ function registerIpcHandlers({ getMainWindow }) {
   });
 
   handle(CHANNELS.WINDOW_CLOSE, async () => {
+    const { examStore } = require('../core/examStore.cjs');
+    // Direct close request refused during active exam (must go through quit guard or submission)
+    if (examStore.state.phase === 'in_progress') {
+      return null;
+    }
     const win = getMainWindow();
     if (win && !win.isDestroyed()) {
       win.close();

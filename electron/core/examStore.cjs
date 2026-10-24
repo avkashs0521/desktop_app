@@ -5,7 +5,19 @@ const { EventEmitter } = require('events');
 const { config } = require('./config.cjs');
 const { createScope } = require('./lifecycle.cjs');
 const examTimer = require('../services/examTimer.cjs');
+const lockdown = require('../services/lockdown.cjs');
 const allQuestions = require('../data/questions.json');
+
+// Window getter hook: allows examStore dialogs to attach to the main BrowserWindow
+let _getMainWindow = null;
+
+function setWindowGetter(fn) {
+  _getMainWindow = fn;
+}
+
+function getWindow() {
+  return typeof _getMainWindow === 'function' ? _getMainWindow() : null;
+}
 
 /**
  * Fisher-Yates shuffle — returns a NEW shuffled array without mutating the original.
@@ -187,6 +199,14 @@ class ExamStore extends EventEmitter {
           throw new ExamError('PRECONDITION', 'Turn on your camera before starting');
         }
 
+        const win = getWindow();
+        if (win) {
+          const accepted = await lockdown.showRulesDialog(win);
+          if (!accepted) {
+            throw new ExamError('CANCELLED', 'Exam start cancelled by candidate.');
+          }
+        }
+
         const now = Date.now();
         this.state.startedAt = now;
         this.state.endsAt = now + this.state.durationMs;
@@ -197,6 +217,11 @@ class ExamStore extends EventEmitter {
           this.examScope.dispose();
         }
         this.examScope = createScope('examSession');
+
+        // Enter exam lockdown (kiosk, always-on-top, content protection, power-save blocker)
+        if (win) {
+          lockdown.enter(win, this.examScope);
+        }
 
         // Start countdown timer
         examTimer.start(this.state.endsAt, this.examScope, () => {
@@ -228,8 +253,22 @@ class ExamStore extends EventEmitter {
       }
 
       case 'SUBMIT_EXAM': {
+        if (source === 'renderer') {
+          const win = getWindow();
+          if (win) {
+            const confirmed = await lockdown.showSubmitConfirm(win);
+            if (!confirmed) {
+              throw new ExamError('CANCELLED', 'Submission cancelled by candidate.');
+            }
+          }
+          // The renderer cannot set a reason — always 'manual'
+          this.state.submitReason = 'manual';
+        } else {
+          // Main-process triggered (e.g. quit guard)
+          this.state.submitReason = payload?.reason || 'quit';
+        }
+
         this.state.submittedAt = Date.now();
-        this.state.submitReason = 'manual';
         this.state.phase = PHASES.SUBMITTED;
         this.state.result = this._calculateResult();
         break;
@@ -356,6 +395,7 @@ module.exports = {
   examStore,
   ExamStore,
   ExamError,
+  setWindowGetter,
   PHASES,
   RENDERER_COMMANDS,
   INTERNAL_COMMANDS,

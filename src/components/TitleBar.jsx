@@ -7,7 +7,7 @@ import { api, isElectron } from '../api';
  * Provides macOS-friendly draggable area, application title, version tag,
  * and window control buttons (minimize, maximize/restore, close).
  */
-export default function TitleBar() {
+export default function TitleBar({ phase }) {
   const [version, setVersion] = useState('');
   const [isMaximized, setIsMaximized] = useState(false);
 
@@ -42,7 +42,7 @@ export default function TitleBar() {
   }, []);
 
   const handleDoubleClick = (e) => {
-    if (e.target.closest('button')) {
+    if (phase === 'in_progress' || e.target.closest('button')) {
       return;
     }
     api.window.toggleMaximize().catch((err) => {
@@ -75,50 +75,52 @@ export default function TitleBar() {
         {version && <span className="titlebar-version">v{version}</span>}
       </div>
 
-      <div className="titlebar-controls">
-        <button
-          type="button"
-          className="titlebar-btn"
-          onClick={handleMinimize}
-          title="Minimize"
-          aria-label="Minimize"
-        >
-          <svg width="12" height="12" viewBox="0 0 12 12">
-            <path d="M2 6h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-          </svg>
-        </button>
-
-        <button
-          type="button"
-          className="titlebar-btn"
-          onClick={handleToggleMaximize}
-          title={isMaximized ? 'Restore' : 'Maximize'}
-          aria-label={isMaximized ? 'Restore' : 'Maximize'}
-        >
-          {isMaximized ? (
+      {phase !== 'in_progress' && (
+        <div className="titlebar-controls">
+          <button
+            type="button"
+            className="titlebar-btn"
+            onClick={handleMinimize}
+            title="Minimize"
+            aria-label="Minimize"
+          >
             <svg width="12" height="12" viewBox="0 0 12 12">
-              <rect x="3.5" y="1.5" width="7" height="7" rx="1" fill="none" stroke="currentColor" strokeWidth="1.2" />
-              <path d="M1.5 4.5v5a1 1 0 0 0 1 1h5" fill="none" stroke="currentColor" strokeWidth="1.2" />
+              <path d="M2 6h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
             </svg>
-          ) : (
-            <svg width="12" height="12" viewBox="0 0 12 12">
-              <rect x="2" y="2" width="8" height="8" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.5" />
-            </svg>
-          )}
-        </button>
+          </button>
 
-        <button
-          type="button"
-          className="titlebar-btn titlebar-btn-close"
-          onClick={handleClose}
-          title="Close"
-          aria-label="Close"
-        >
-          <svg width="12" height="12" viewBox="0 0 12 12">
-            <path d="M2.5 2.5l7 7M9.5 2.5l-7 7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-          </svg>
-        </button>
-      </div>
+          <button
+            type="button"
+            className="titlebar-btn"
+            onClick={handleToggleMaximize}
+            title={isMaximized ? 'Restore' : 'Maximize'}
+            aria-label={isMaximized ? 'Restore' : 'Maximize'}
+          >
+            {isMaximized ? (
+              <svg width="12" height="12" viewBox="0 0 12 12">
+                <rect x="3.5" y="1.5" width="7" height="7" rx="1" fill="none" stroke="currentColor" strokeWidth="1.2" />
+                <path d="M1.5 4.5v5a1 1 0 0 0 1 1h5" fill="none" stroke="currentColor" strokeWidth="1.2" />
+              </svg>
+            ) : (
+              <svg width="12" height="12" viewBox="0 0 12 12">
+                <rect x="2" y="2" width="8" height="8" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.5" />
+              </svg>
+            )}
+          </button>
+
+          <button
+            type="button"
+            className="titlebar-btn titlebar-btn-close"
+            onClick={handleClose}
+            title="Close"
+            aria-label="Close"
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12">
+              <path d="M2.5 2.5l7 7M9.5 2.5l-7 7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+          </button>
+        </div>
+      )}
     </header>
   );
 }
