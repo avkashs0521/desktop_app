@@ -1,10 +1,25 @@
-// electron/window.cjs - BrowserWindow creation and configuration for Argus
+// electron/window.cjs - BrowserWindow creation, security guards, and push messaging for Argus
 const { BrowserWindow, app } = require('electron');
 const path = require('path');
+const { CHANNELS } = require('./ipc/channels.cjs');
+
+// Module-level reference to the active window for push messaging
+let activeWindow = null;
 
 /**
- * Creates and configures the primary application window.
- * Configured with strict security settings for a proctored exam environment.
+ * Sends an IPC message from the main process to the renderer process.
+ * Safely acts as a no-op if the window does not exist or has been destroyed.
+ * @param {string} channel - The IPC channel name.
+ * @param {any} payload - The serializable data payload.
+ */
+function sendToRenderer(channel, payload) {
+  if (activeWindow && !activeWindow.isDestroyed()) {
+    activeWindow.webContents.send(channel, payload);
+  }
+}
+
+/**
+ * Creates and configures the primary frameless application window with security guards.
  * @returns {BrowserWindow} The created window instance.
  */
 function createMainWindow() {
@@ -15,6 +30,7 @@ function createMainWindow() {
     minHeight: 620,
     title: 'Argus',
     show: false,
+    frame: false, // Frameless window to allow our custom security TitleBar
     backgroundColor: '#ffffff',
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
@@ -31,9 +47,52 @@ function createMainWindow() {
     },
   });
 
+  activeWindow = mainWindow;
+  mainWindow.on('closed', () => {
+    if (activeWindow === mainWindow) {
+      activeWindow = null;
+    }
+  });
+
+  // Push updated window maximize/fullscreen state to renderer
+  const pushWindowState = () => {
+    sendToRenderer(CHANNELS.WINDOW_STATE, {
+      isMaximized: mainWindow.isMaximized(),
+      isFullScreen: mainWindow.isFullScreen(),
+    });
+  };
+
+  mainWindow.on('maximize', pushWindowState);
+  mainWindow.on('unmaximize', pushWindowState);
+  mainWindow.on('enter-full-screen', pushWindowState);
+  mainWindow.on('leave-full-screen', pushWindowState);
+
+  // Security navigation guard: prevent navigating away from application content
+  mainWindow.webContents.on('will-navigate', (event, navigationUrl) => {
+    const devUrl = process.env.ARGUS_DEV_URL;
+    const isAllowed = devUrl
+      ? navigationUrl.startsWith(devUrl)
+      : navigationUrl.startsWith('file://');
+
+    if (!isAllowed) {
+      event.preventDefault();
+    }
+  });
+
+  // Security popup guard: block all new window/tab requests (e.g., window.open or target="_blank")
+  mainWindow.webContents.setWindowOpenHandler(() => {
+    return { action: 'deny' };
+  });
+
+  // Security webview guard: prevent injection or mounting of <webview> tags
+  mainWindow.webContents.on('will-attach-webview', (event) => {
+    event.preventDefault();
+  });
+
   // Gracefully reveal window only when DOM content has rendered to prevent white flash
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
+    pushWindowState();
   });
 
   // In development, load from Vite dev server and open detached DevTools.
@@ -48,4 +107,7 @@ function createMainWindow() {
   return mainWindow;
 }
 
-module.exports = { createMainWindow };
+module.exports = {
+  createMainWindow,
+  sendToRenderer,
+};

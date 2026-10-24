@@ -1,1 +1,63 @@
-// bridge added in commit 2
+// electron/preload.cjs
+// Secure preload bridge exposing strictly controlled APIs from the main process to the renderer.
+
+const { contextBridge, ipcRenderer } = require('electron');
+
+/**
+ * Sandboxed preload scripts cannot require external or relative files from disk.
+ * We maintain an explicit inline mirror of only the approved IPC channels this renderer may interact with.
+ */
+const CHANNELS = Object.freeze({
+  APP_GET_INFO: 'app:get-info',
+  WINDOW_MINIMIZE: 'window:minimize',
+  WINDOW_TOGGLE_MAXIMIZE: 'window:toggle-maximize',
+  WINDOW_CLOSE: 'window:close',
+  WINDOW_STATE: 'window:state',
+});
+
+/**
+ * Helper to invoke an IPC channel with a payload.
+ * @param {string} channel
+ * @param {any} [payload]
+ * @returns {Promise<any>}
+ */
+function invoke(channel, payload) {
+  return ipcRenderer.invoke(channel, payload);
+}
+
+/**
+ * Helper to subscribe to main process push events on an approved channel.
+ * Wraps the callback so only the payload is passed, preventing leakage of the internal IPC event object.
+ * Returns a dedicated unsubscription function.
+ * @param {string} channel
+ * @param {Function} callback - Function receiving (payload)
+ * @returns {Function} Unsubscribe function
+ */
+function subscribe(channel, callback) {
+  const listener = (_event, payload) => {
+    callback(payload);
+  };
+  ipcRenderer.on(channel, listener);
+  return () => {
+    ipcRenderer.removeListener(channel, listener);
+  };
+}
+
+/**
+ * SECURITY ARCHITECTURE NOTE:
+ * Never expose raw `ipcRenderer` or a generic `send(channel, ...)` / `invoke(channel, ...)` method.
+ * Exposing generic IPC primitives allows any script in the renderer (or an attacker exploiting an XSS flaw)
+ * to communicate with arbitrary internal channels or intercept sensitive messages.
+ * Only narrow, explicitly defined functions mapped to predefined channels are exposed.
+ */
+contextBridge.exposeInMainWorld('argus', {
+  app: {
+    getInfo: () => invoke(CHANNELS.APP_GET_INFO),
+  },
+  window: {
+    minimize: () => invoke(CHANNELS.WINDOW_MINIMIZE),
+    toggleMaximize: () => invoke(CHANNELS.WINDOW_TOGGLE_MAXIMIZE),
+    close: () => invoke(CHANNELS.WINDOW_CLOSE),
+    onState: (callback) => subscribe(CHANNELS.WINDOW_STATE, callback),
+  },
+});

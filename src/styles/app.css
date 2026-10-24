@@ -78,9 +78,84 @@ html, body {
   flex-direction: column;
 }
 
+/* Custom Frameless Title Bar */
+/*
+ * NOTE: The titlebar uses -webkit-app-region: drag so users can grab and drag the window.
+ * All interactive child elements (buttons, inputs) MUST specify -webkit-app-region: no-drag
+ * so click and double-click events are dispatched to JavaScript rather than handled by the OS window manager.
+ */
+.titlebar {
+  height: 40px;
+  min-height: 40px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--space-md);
+  background-color: var(--bg-card);
+  border-bottom: 1px solid var(--border-color);
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-app-region: drag;
+}
+
+.titlebar-info {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.titlebar-title {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+
+.titlebar-version {
+  font-size: var(--font-size-xs);
+  padding: 1px 6px;
+  background-color: var(--badge-bg);
+  color: var(--badge-text);
+  border: 1px solid var(--badge-border);
+  border-radius: var(--radius-sm);
+}
+
+.titlebar-controls {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  -webkit-app-region: no-drag;
+}
+
+.titlebar-btn {
+  width: 32px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+  -webkit-app-region: no-drag;
+}
+
+.titlebar-btn:hover {
+  background-color: var(--border-color);
+  color: var(--text-primary);
+}
+
+.titlebar-btn-close:hover {
+  background-color: #ef4444;
+  color: #ffffff;
+}
+
 /* App Layout & Welcome Card */
 .app-container {
-  min-height: 100vh;
+  min-height: calc(100vh - 40px);
   display: flex;
   flex-direction: column;
   align-items: center;
