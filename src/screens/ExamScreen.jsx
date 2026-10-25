@@ -31,6 +31,9 @@ export default function ExamScreen({
   candidate,
   answers = {},
   review = [],
+  violations = [],
+  snapshotCount = 0,
+  maxViolations = 5,
   onSubmit,
   send,
   error,
@@ -40,6 +43,27 @@ export default function ExamScreen({
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+  const [violationToast, setViolationToast] = useState(null);
+
+  // Subscribe to real-time proctoring violation alerts
+  useEffect(() => {
+    const unsubscribe = api.proctor.onViolation((v) => {
+      setViolationToast(v);
+    });
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
+  // Auto-dismiss violation warning toast after 5 seconds
+  useEffect(() => {
+    if (violationToast) {
+      const timer = setTimeout(() => {
+        setViolationToast(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [violationToast]);
 
   // Load questions once when phase becomes in_progress (and again after window reload)
   useEffect(() => {
@@ -175,6 +199,14 @@ export default function ExamScreen({
       {/* Warning banner rendered at top of exam screen */}
       <WarningBanner />
 
+      {/* Real-time violation notification toast */}
+      {violationToast && (
+        <div className="violation-toast" role="alert">
+          <span className="violation-toast-title">Violation {violationToast.count}/{violationToast.max}: </span>
+          <span className="violation-toast-detail">{violationToast.detail}</span>
+        </div>
+      )}
+
       {/* ── Top Header Bar ── */}
       <header className="exam-header-bar">
         <div className="exam-header-left">
@@ -186,6 +218,14 @@ export default function ExamScreen({
         </div>
 
         <div className="exam-header-right">
+          {/* Proctoring telemetry */}
+          <span className={`exam-progress-badge ${violations.length > 0 ? 'badge-violations-warn' : ''}`}>
+            Violations {violations.length}/{maxViolations}
+          </span>
+          <span className="exam-progress-badge">
+            Snapshots {snapshotCount}
+          </span>
+
           {/* Progress counts */}
           <span className="exam-progress-badge">
             {answeredCount}/{totalQuestions} answered

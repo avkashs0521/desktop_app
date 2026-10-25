@@ -7,6 +7,9 @@ const { createScope } = require('./lifecycle.cjs');
 const examTimer = require('../services/examTimer.cjs');
 const lockdown = require('../services/lockdown.cjs');
 const { getActiveBank, setActiveBankData } = require('../services/questionBank.cjs');
+const { app, shell } = require('electron');
+const { notify } = require('../services/notifier.cjs');
+const { startProctoring } = require('../services/proctor.cjs');
 const storage = require('../services/storage.cjs');
 
 // Window getter hook: allows examStore dialogs to attach to the main BrowserWindow
@@ -64,6 +67,8 @@ const RENDERER_COMMANDS = Object.freeze([
 const INTERNAL_COMMANDS = Object.freeze([
   'TIME_UP',
   'TERMINATE',
+  'RECORD_VIOLATION',
+  'SNAPSHOT_SAVED',
 ]);
 
 /**
@@ -73,7 +78,16 @@ const INTERNAL_COMMANDS = Object.freeze([
 const TRANSITIONS = Object.freeze({
   [PHASES.WELCOME]: ['REGISTER_CANDIDATE'],
   [PHASES.SETUP]: ['START_EXAM', 'RESET', 'REPORT_CHECK'],
-  [PHASES.IN_PROGRESS]: ['SAVE_ANSWER', 'TOGGLE_REVIEW', 'SUBMIT_EXAM', 'TIME_UP', 'TERMINATE', 'REPORT_CHECK'],
+  [PHASES.IN_PROGRESS]: [
+    'SAVE_ANSWER',
+    'TOGGLE_REVIEW',
+    'SUBMIT_EXAM',
+    'TIME_UP',
+    'TERMINATE',
+    'REPORT_CHECK',
+    'RECORD_VIOLATION',
+    'SNAPSHOT_SAVED',
+  ],
   [PHASES.SUBMITTED]: ['RESET'],
   [PHASES.TERMINATED]: ['RESET'],
 });
@@ -131,7 +145,12 @@ class ExamStore extends EventEmitter {
    * @returns {Object}
    */
   getPublicState() {
-    return JSON.parse(JSON.stringify(this.state));
+    const pub = JSON.parse(JSON.stringify(this.state));
+    pub.proctor = {
+      maxViolations: config.maxViolations,
+      snapshotIntervalSeconds: config.snapshotIntervalSeconds,
+    };
+    return pub;
   }
 
   /**
@@ -247,6 +266,9 @@ class ExamStore extends EventEmitter {
             console.error('[ExamStore] Error executing TIME_UP:', err);
           });
         });
+
+        // Initialize display and process monitoring proctors
+        startProctoring({ store: this, config, scope: this.examScope });
         break;
       }
 
@@ -316,6 +338,9 @@ class ExamStore extends EventEmitter {
       }
 
       case 'RESET': {
+        if (app.dock && typeof app.dock.setBadge === 'function') {
+          app.dock.setBadge('');
+        }
         const preservedCandidate = this.state.candidate;
         this.state = this._createInitialState(preservedCandidate);
         break;
@@ -323,6 +348,20 @@ class ExamStore extends EventEmitter {
 
       case 'REPORT_CHECK': {
         this.state.checks[payload.name] = Boolean(payload.ok);
+        if (payload.name === 'camera' && !payload.ok && this.state.phase === PHASES.IN_PROGRESS) {
+          this.addViolation('camera_off', 'Camera stopped');
+        }
+        break;
+      }
+
+      case 'RECORD_VIOLATION': {
+        const { kind, detail } = payload || {};
+        this.addViolation(kind || 'generic', detail || 'Violation recorded');
+        break;
+      }
+
+      case 'SNAPSHOT_SAVED': {
+        this.state.snapshotCount = (this.state.snapshotCount || 0) + 1;
         break;
       }
 
@@ -506,6 +545,9 @@ class ExamStore extends EventEmitter {
       });
     });
 
+    // Re-initialize proctoring monitors
+    startProctoring({ store: this, config, scope: this.examScope });
+
     this.emit('phase', this.state.phase);
     this.emit('change', this.getPublicState());
     return this.getPublicState();
@@ -561,6 +603,39 @@ class ExamStore extends EventEmitter {
     this.emit('phase', this.state.phase);
     this.emit('change', this.getPublicState());
     return this.getPublicState();
+  }
+
+  /**
+   * Records a security violation, triggers OS/Dock alerts, and auto-terminates if limit is reached.
+   *
+   * @param {string} kind - Violation category ('multiple_displays' | 'blocked_app' | 'camera_off')
+   * @param {string} detail - Context description
+   */
+  addViolation(kind, detail) {
+    const at = Date.now();
+    this.state.violations.push({ at, kind, detail });
+
+    const count = this.state.violations.length;
+    const max = config.maxViolations;
+
+    notify(`Violation ${count} of ${max}`, detail);
+    shell.beep();
+    if (app.dock && typeof app.dock.setBadge === 'function') {
+      app.dock.setBadge(String(count));
+    }
+
+    this.emit('violation', { kind, detail, count, max });
+
+    // When violations.length reaches config.maxViolations, call dispatch('TERMINATE', { reason: 'max_violations' }) WITHOUT awaiting it.
+    // Comment: awaiting a queued command from inside another command would deadlock the queue.
+    if (count >= max) {
+      this.dispatch('TERMINATE', {
+        source: 'main',
+        payload: { reason: 'max_violations' },
+      }).catch((err) => {
+        console.error('[ExamStore] Error terminating for max_violations:', err);
+      });
+    }
   }
 }
 

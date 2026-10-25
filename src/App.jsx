@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react';
 import TitleBar from './components/TitleBar';
 import { useExamState } from './hooks/useExamState';
 import { useCamera } from './hooks/useCamera';
+import { useSnapshots } from './hooks/useSnapshots';
 import { isElectron } from './api';
 import WelcomeScreen from './screens/WelcomeScreen';
 import SetupScreen from './screens/SetupScreen';
@@ -61,6 +62,10 @@ export default function App() {
       };
     }
   }, [state?.phase, cameraStatus]);
+
+  // Periodic webcam frame snapshot capture during active examination
+  const snapshotInterval = state?.proctor?.snapshotIntervalSeconds || 10;
+  useSnapshots(videoRef, state?.phase === 'in_progress', snapshotInterval);
 
   if (!isElectron) {
     return (
@@ -133,6 +138,9 @@ export default function App() {
             candidate={state.candidate}
             answers={state.answers || {}}
             review={state.review || []}
+            violations={state.violations || []}
+            snapshotCount={state.snapshotCount || 0}
+            maxViolations={state.proctor?.maxViolations || 5}
             onSubmit={() => send('SUBMIT_EXAM').catch(() => {})}
             send={send}
             error={setupError}

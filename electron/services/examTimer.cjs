@@ -36,6 +36,8 @@ function start(endsAt, scope, dispatchTimeUp) {
       if (!firedWarnings.has(minutesLeft) && remainingMs <= thresholdMs && remainingMs > 0) {
         firedWarnings.add(minutesLeft);
         sendToRenderer(CHANNELS.EXAM_WARNING, { minutesLeft });
+        const { notify } = require('./notifier.cjs');
+        notify('Exam Warning', `${minutesLeft} minute${minutesLeft === 1 ? '' : 's'} left`);
       }
     }
 

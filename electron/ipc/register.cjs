@@ -2,6 +2,8 @@
 // Central registration module for all IPC handlers with sender validation and error envelopes.
 
 const { ipcMain, app } = require('electron');
+const fs = require('fs');
+const path = require('path');
 const { CHANNELS } = require('./channels.cjs');
 const { isTrustedUrl } = require('../core/trust.cjs');
 const permissionsService = require('../services/permissions.cjs');
@@ -203,6 +205,58 @@ function registerIpcHandlers({ getMainWindow }) {
     const storage = require('../services/storage.cjs');
     const sessions = storage.listSessions();
     return sessions.slice(0, 10);
+  });
+
+  // ==========================================
+  // Proctoring Domain Handlers
+  // ==========================================
+  handle(CHANNELS.PROCTOR_SAVE_SNAPSHOT, async (bytes) => {
+    const { examStore } = require('../core/examStore.cjs');
+    if (examStore.state.phase !== 'in_progress') {
+      const err = new Error('Snapshots are accepted only while exam is in progress.');
+      err.code = 'INVALID_PHASE';
+      throw err;
+    }
+
+    if (!bytes) {
+      const err = new Error('No snapshot data provided.');
+      err.code = 'INVALID_PAYLOAD';
+      throw err;
+    }
+
+    const buf = Buffer.from(new Uint8Array(bytes));
+    if (buf.length < 1024) {
+      const err = new Error('Snapshot size must be at least 1 KB.');
+      err.code = 'FILE_TOO_SMALL';
+      throw err;
+    }
+    if (buf.length > 2 * 1024 * 1024) {
+      const err = new Error('Snapshot size must not exceed 2 MB.');
+      err.code = 'FILE_TOO_LARGE';
+      throw err;
+    }
+
+    // JPEG magic bytes: FF D8 FF
+    if (buf[0] !== 0xff || buf[1] !== 0xd8 || buf[2] !== 0xff) {
+      const err = new Error('Invalid image format: must be JPEG (magic bytes FF D8 FF).');
+      err.code = 'INVALID_FORMAT';
+      throw err;
+    }
+
+    const sessionId = examStore.state.sessionId;
+    const proctorSessionDir = path.join(app.getPath('userData'), 'proctor', sessionId);
+    await fs.promises.mkdir(proctorSessionDir, { recursive: true });
+
+    const currentCount = examStore.state.snapshotCount || 0;
+    const newCount = currentCount + 1;
+    const countStr = String(newCount).padStart(4, '0');
+    const fileName = `snap-${countStr}-${Date.now()}.jpg`;
+    const filePath = path.join(proctorSessionDir, fileName);
+
+    await fs.promises.writeFile(filePath, buf);
+    await examStore.dispatch('SNAPSHOT_SAVED', { source: 'main' });
+
+    return { count: newCount };
   });
 }
 

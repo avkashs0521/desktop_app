@@ -11,6 +11,7 @@ const { buildMenu } = require('./menu.cjs');
 const { initAutosave, flushSync } = require('./core/autosave.cjs');
 const storage = require('./services/storage.cjs');
 const questionBank = require('./services/questionBank.cjs');
+const { notify } = require('./services/notifier.cjs');
 
 // Initialize debounced state autosave
 initAutosave(examStore);
@@ -95,11 +96,23 @@ examStore.on('bank-changed', (bankSummary) => {
   sendToRenderer(CHANNELS.QUESTIONS_CHANGED, bankSummary);
 });
 
+// Push proctoring violations to the renderer
+examStore.on('violation', (violationData) => {
+  sendToRenderer(CHANNELS.PROCTOR_VIOLATION, violationData);
+});
+
 // State-driven application menu:
 // Update the native menu whenever the exam phase changes (e.g. disable clipboard and minimize in 'in_progress')
 Menu.setApplicationMenu(buildMenu(examStore.state));
 examStore.on('phase', (phase) => {
   Menu.setApplicationMenu(buildMenu(phase));
+
+  // Notify candidate when exam concludes
+  if (phase === 'submitted') {
+    notify('Exam submitted', `Reason: ${examStore.state.submitReason || 'manual'}`);
+  } else if (phase === 'terminated') {
+    notify('Exam ended', `Reason: ${examStore.state.submitReason || 'terminated'}`);
+  }
 });
 
 // Set native macOS About panel metadata

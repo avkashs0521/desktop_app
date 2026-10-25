@@ -1393,3 +1393,106 @@ html, body {
   font-size: 1.5rem;
   font-weight: 800;
 }
+
+/* Violation toast alert */
+.violation-toast {
+  position: fixed;
+  top: 50px;
+  right: 24px;
+  background-color: #fee2e2;
+  border: 1px solid #ef4444;
+  color: #991b1b;
+  padding: 12px 18px;
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--font-size-sm);
+  animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.violation-toast-title {
+  font-weight: 700;
+}
+
+.badge-violations-warn {
+  background-color: #fee2e2 !important;
+  color: #b91c1c !important;
+  border-color: #fca5a5 !important;
+}
+
+/* Terminated violations list */
+.violations-container {
+  margin-top: var(--space-xl);
+  text-align: left;
+  background-color: var(--bg-hover);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: var(--space-md) var(--space-lg);
+  width: 100%;
+}
+
+.violations-heading {
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: var(--space-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.violations-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.violation-item {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-sm);
+  font-size: var(--font-size-xs);
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.violation-item:last-child {
+  border-bottom: none;
+}
+
+.violation-time {
+  font-family: monospace;
+  color: var(--text-tertiary);
+  font-weight: 600;
+}
+
+.violation-kind {
+  font-weight: 700;
+  color: #b91c1c;
+  background-color: #fee2e2;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  text-transform: uppercase;
+  font-size: 10px;
+}
+
+.violation-detail {
+  color: var(--text-secondary);
+  flex: 1;
+}

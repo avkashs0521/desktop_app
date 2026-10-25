@@ -87,4 +87,13 @@ export const api = {
   history: {
     list: () => (isElectron ? unwrap(window.argus.history.list()) : ensureDesktop()),
   },
+  proctor: {
+    saveSnapshot: (bytes) => (isElectron ? unwrap(window.argus.proctor.saveSnapshot(bytes)) : ensureDesktop()),
+    onViolation: (callback) => {
+      if (!isElectron || !window.argus.proctor?.onViolation) {
+        return () => {};
+      }
+      return window.argus.proctor.onViolation(callback);
+    },
+  },
 };

@@ -31,6 +31,10 @@ const CHANNELS = Object.freeze({
   // Settings & Persistence domain
   SETTINGS_GET: 'settings:get', // invoke → { theme, candidate, activeBank summary }
   HISTORY_LIST: 'history:list', // invoke → listSessions() summaries (max 10)
+
+  // Proctoring domain
+  PROCTOR_SAVE_SNAPSHOT: 'proctor:save-snapshot', // invoke (bytes) → { count }
+  PROCTOR_VIOLATION: 'proctor:violation', // main → renderer push: { kind, detail, count, max }
 });
 
 module.exports = { CHANNELS };

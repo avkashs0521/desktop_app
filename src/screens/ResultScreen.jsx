@@ -10,17 +10,29 @@ export default function ResultScreen({ state, onReset }) {
   const { answeredCount = 0, correctCount, totalCount, scorePercent } = result;
   const hasScore = typeof correctCount === 'number' && typeof totalCount === 'number';
   const reason = state.submitReason || 'manual';
+  const violations = Array.isArray(state.violations) ? state.violations : [];
 
   const reasonLabels = {
     manual: 'Manual candidate submission',
     time_up: 'Allocated exam time expired (automatic submission)',
-    violation_limit: 'Exceeded maximum permitted security violations',
+    max_violations: 'Exam ended after too many violations',
+    violation_limit: 'Exam ended after too many violations',
+    camera_off: 'Camera stopped during examination',
     terminated: 'Terminated by proctoring supervisor',
+    quit: 'Submitted upon quit attempt',
+    time_up_while_closed: 'Time expired while Argus was closed',
+    submitted_on_resume: 'Submitted upon relaunch',
+    bank_missing: 'Question bank missing',
   };
 
-  const statusTitle = isTerminated ? 'Assessment Terminated' : 'Assessment Completed';
+  const statusTitle = isTerminated
+    ? reason === 'max_violations'
+      ? 'Exam ended after too many violations'
+      : 'Assessment Terminated'
+    : 'Assessment Completed';
+
   const statusDescription = isTerminated
-    ? 'This examination session was halted due to a security violation or administrator action.'
+    ? 'This examination session was halted due to security policy violations.'
     : 'Your exam answers have been securely logged in the main process.';
 
   // Determine score colour class
@@ -65,6 +77,28 @@ export default function ResultScreen({ state, onReset }) {
             </div>
           )}
         </div>
+
+        {/* Violations List rendered when session is terminated */}
+        {isTerminated && violations.length > 0 && (
+          <div className="violations-container">
+            <h2 className="violations-heading">Recorded Violations</h2>
+            <ul className="violations-list">
+              {violations.map((v, i) => (
+                <li key={i} className="violation-item">
+                  <span className="violation-time">
+                    {new Date(v.at).toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit',
+                    })}
+                  </span>
+                  <span className="violation-kind">{v.kind}</span>
+                  <span className="violation-detail">{v.detail}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         <div className="result-actions">
           <button type="button" className="btn btn-primary" onClick={onReset}>

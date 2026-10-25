@@ -35,6 +35,10 @@ const CHANNELS = Object.freeze({
   // Settings & History domain
   SETTINGS_GET: 'settings:get',
   HISTORY_LIST: 'history:list',
+
+  // Proctoring domain
+  PROCTOR_SAVE_SNAPSHOT: 'proctor:save-snapshot',
+  PROCTOR_VIOLATION: 'proctor:violation',
 });
 
 /**
@@ -105,5 +109,9 @@ contextBridge.exposeInMainWorld('argus', {
   },
   history: {
     list: () => invoke(CHANNELS.HISTORY_LIST),
+  },
+  proctor: {
+    saveSnapshot: (bytes) => invoke(CHANNELS.PROCTOR_SAVE_SNAPSHOT, bytes),
+    onViolation: (callback) => subscribe(CHANNELS.PROCTOR_VIOLATION, callback),
   },
 });
