@@ -1,4 +1,21 @@
 // electron/main.cjs - Application entry point, lifecycle manager, and quit guard for Argus
+
+// ── Global error handlers ──────────────────────────────────────────────────
+// Catch any synchronous JS exception that escapes every try/catch in the
+// main process. Log the full stack trace and keep the app alive if possible
+// (only crash when the app is completely unusable).
+process.on('uncaughtException', (err) => {
+  console.error('[Main] Uncaught exception:', err);
+  // Do NOT call app.quit() here — let the exam state machine decide whether
+  // a controlled submit/flush is needed before exit.
+});
+
+// Catch unresolved Promises (e.g. async IPC handlers that throw without try/catch).
+// Log and continue; avoids silent failures.
+process.on('unhandledRejection', (reason) => {
+  console.error('[Main] Unhandled promise rejection:', reason);
+});
+
 const { app, BrowserWindow, session, Menu, dialog } = require('electron');
 const { createMainWindow, sendToRenderer, getActiveWindow } = require('./window.cjs');
 const { registerIpcHandlers } = require('./ipc/register.cjs');

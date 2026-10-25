@@ -19,7 +19,7 @@ export default defineConfig([
     },
   },
   {
-    files: ['electron/**/*.cjs'],
+    files: ['electron/**/*.cjs', 'build/**/*.cjs'],
     extends: [js.configs.recommended],
     languageOptions: {
       sourceType: 'commonjs',
