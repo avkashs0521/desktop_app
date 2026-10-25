@@ -324,7 +324,96 @@ The Chromium renderer environment is treated as **untrusted**. Candidates or aut
 
 ---
 
-## 11. Commit Log
+## 11. Persistence, Autosave & Crash Recovery Architecture
+
+Argus implements robust, local-first persistence without external database engines or third-party storage libraries. All exam states, user preferences, and imported question banks reside in standard OS user data locations managed through atomic file operations.
+
+### 11.1 User Data Directory Hierarchy
+
+The root directory is obtained dynamically via Electron's `app.getPath('userData')`:
+- **macOS Path**: `~/Library/Application Support/Argus/`
+- **Linux Path**: `~/.config/Argus/`
+- **Windows Path**: `%APPDATA%\Argus\`
+
+```text
+~/Library/Application Support/Argus/
+├── settings.json                   # Application configuration, candidate credentials, active bank
+├── sessions/                       # Serialized exam sessions (UUID named)
+│   └── <sessionId>.json            # Complete state machine snapshot
+├── banks/                          # Persisted imported question banks (SHA-256 named)
+│   └── <sha256>.json               # Validated question bank content
+├── proctor/                        # Proctoring webcam snapshots & evidence
+└── logs/                           # Integrity audit logs and violation records
+```
+
+### 11.2 What Each File Holds
+
+1. **`settings.json`**:
+   - Stores application configuration, student intake defaults, and active bank bindings:
+     ```json
+     {
+       "schemaVersion": 1,
+       "theme": "system",
+       "candidate": { "name": "Avkash Singh", "rollNo": "21BCE1023" },
+       "activeBank": {
+         "path": "/path/to/userData/banks/<hash>.json",
+         "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+         "fileName": "sample-bank.json"
+       }
+     }
+     ```
+   - **Schema Migrations (`migrate`)**: Includes a `schemaVersion` key. When future versions introduce new configuration keys, the `migrate(settings)` function guarantees backward compatibility without wiping stored candidate credentials or preferences.
+
+2. **`sessions/<sessionId>.json`**:
+   - Stores the complete serialized state of an exam session: candidate info, question ordering, answer selections (`answers: { [qId]: optionIndex }`), flagged review list, timestamps (`startedAt`, `endsAt`, `submittedAt`), submission reason, bank metadata, and final graded results.
+   - Identified by a random UUID v4 (`sessionId`).
+
+3. **`banks/<sha256>.json`**:
+   - When an external question bank is imported and validated, it is copied to the `banks/` directory named with its exact 64-character SHA-256 hex digest.
+   - Content-addressable storage ensures duplicate imports never conflict and banks cannot be altered without changing their identifier.
+
+### 11.3 Atomic Writes & Corruption Strategy
+
+- **Atomic Write Strategy (`writeJsonAtomic` / `writeJsonAtomicSync`)**:
+  1. The JSON payload is written to a temporary sibling file (`<file>.tmp`).
+  2. The temporary file is renamed over the target file using `fs.rename` (or `fs.renameSync`).
+  3. **Why it works**: On POSIX filesystems and Windows, `rename` within the same disk volume is an **atomic kernel operation**. If the app is killed, the OS crashes, or power is disconnected mid-write, the destination file remains completely uncorrupted — it either reflects the previous valid write or the new complete write, never half a file.
+  4. `writeJsonAtomic` uses asynchronous `fs.promises` during runtime. `writeJsonAtomicSync` is reserved strictly for shutdown flushes where async event-loop operations cannot be guaranteed before process exit.
+
+- **Corrupt File Strategy (`readJson`)**:
+  - Missing files return the safe fallback default without throwing.
+  - If a file exists but contains invalid or truncated JSON, `readJson` catches `SyntaxError`, renames the damaged file to `<name>.corrupt-<timestamp>.json`, logs a warning, and returns the fallback object.
+  - **Result**: A corrupt file never causes the application to crash on startup or freeze during state machine hydration.
+
+### 11.4 Autosave Architecture (`electron/core/autosave.cjs`)
+
+- **Debounced Save (400 ms)**: On state machine `'change'` events (such as selecting answers or toggling review flags), writes are debounced by 400 milliseconds. This eliminates unnecessary disk thrashing and SSD wear during rapid answer selection.
+- **Immediate Save**: Phase transitions (`'phase'` event) bypass the debounce timer and flush immediately to ensure lifecycle state (e.g., transition to `setup`, `in_progress`, or `submitted`) is durable.
+- **Quit Flush**: The `before-quit` handler executes `flushSync()`, synchronously writing any uncommitted in-flight state before Electron closes the process.
+- **Candidate Prefill**: Calling `REGISTER_CANDIDATE` updates the stored candidate in `settings.json`, allowing the Welcome screen to prefill student details on subsequent launches.
+
+### 11.5 Crash & Quit Recovery (`checkCrashRecovery`)
+
+When Argus launches and the main window emits `'ready-to-show'`, the application inspects stored sessions via `findUnfinishedSession()`:
+
+1. **No Unfinished Session**: The app proceeds to the Welcome screen as normal.
+2. **Missing Bank Guard**: If the session's question bank cannot be verified by its SHA-256 hash in `banks/` or bundled assets, the session is marked `terminated` with reason `'bank_missing'`, and the student is informed.
+3. **Wall-Clock Invariant**:
+   > **Comment**: The clock keeps running while the app is closed (`endsAt` is an absolute epoch timestamp), so quitting or force-closing the application cannot pause an exam.
+4. **Time Expired While Closed (`now >= endsAt`)**:
+   - The session is finalized with submitReason `'time_up_while_closed'`.
+   - A dialog informs the candidate that the exam time ran out while Argus was closed.
+5. **Time Remaining (`now < endsAt`)**:
+   - Argus displays a native sheet dialog:
+     - **Title**: *"Resume your exam?"*
+     - **Detail**: *"Started at <time>. <m> minutes left. <n> questions answered."*
+     - **Buttons**: `['Resume', 'Submit it now']`
+   - **Resume**: Restores session state via `store.restore(session, bankData)`. The phase reverts to `in_progress`, the camera check resets to `false` (triggering automatic webcam re-activation in the renderer), lockdown is re-engaged, and the countdown timer resumes with the preserved `endsAt`.
+   - **Submit**: Submits the exam immediately with reason `'submitted_on_resume'`.
+
+---
+
+## 12. Commit Log
 
 - **Commit 1: chore: scaffold Electron + React + Vite desktop app**
   - Cloned repository and verified Node 20+ runtime.
@@ -388,3 +477,15 @@ The Chromium renderer environment is treated as **untrusted**. Candidates or aut
   - Added `File → Import Question Bank…` (CmdOrCtrl+O) to the application menu, enabled only in `welcome` and `setup` phases.
   - Enhanced `SetupScreen` with a Question Bank card displaying title, question count, source, short hash, and import button.
   - Upgraded `ExamScreen` to securely load questions on mount/reload, render the question palette with real-time answer/review badges, support "Clear response", and enable Left/Right arrow key navigation.
+
+- **Commit 8: feat(storage): local persistence, autosave and session recovery**
+  - Implemented `electron/services/storage.cjs` managing `~/Library/Application Support/Argus` (`sessions/`, `banks/`, `proctor/`, `logs/`, `settings.json`).
+  - Implemented atomic file write strategy (`writeJsonAtomic` async, `writeJsonAtomicSync` sync) via `.tmp` write and kernel `rename`.
+  - Implemented corrupt file recovery in `readJson` (renaming unparseable files to `<name>.corrupt-<timestamp>.json` and returning fallbacks).
+  - Implemented versioned settings schema with `migrate(settings)` and restricted property whitelist in `updateSettings`.
+  - Built `electron/core/autosave.cjs` debouncing state machine updates at 400ms on `'change'`, flushing immediately on `'phase'`, and flushing synchronously on quit.
+  - Bound imported question banks to `banks/<sha256>.json` and verified hash integrity against settings on startup.
+  - Added crash and quit recovery (`checkCrashRecovery`) on `ready-to-show`: prompt dialog if time remains (`endsAt` wall-clock invariant), auto-submission on expiration (`time_up_while_closed`), and bank verification (`bank_missing`).
+  - Registered IPC channels `settings:get` and `history:list`, exposed via `argus.settings` and `argus.history`.
+  - Enhanced `WelcomeScreen` to prefill candidate credentials from settings and render a Previous Attempts history card showing date, status, and answered count for recent sessions.
+

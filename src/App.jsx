@@ -33,6 +33,13 @@ export default function App() {
     }
   }, [state?.phase, stopCamera]);
 
+  // Auto-start camera on session restore/recovery whenever phase is in_progress and camera check is false
+  useEffect(() => {
+    if (state?.phase === 'in_progress' && !state?.checks?.camera && cameraStatus !== 'on' && cameraStatus !== 'waiting') {
+      startCamera();
+    }
+  }, [state?.phase, state?.checks?.camera, cameraStatus, startCamera]);
+
   // Dynamically position the persistent camera overlay to match the 320x240 placeholder in SetupScreen
   useEffect(() => {
     if (state?.phase === 'setup' && cameraStatus === 'on') {

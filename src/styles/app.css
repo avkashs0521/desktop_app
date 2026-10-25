@@ -188,6 +188,116 @@ html, body {
   align-items: center;
 }
 
+.welcome-container {
+  gap: var(--space-lg);
+}
+
+.history-card {
+  max-width: 520px;
+  padding: var(--space-lg) var(--space-xl);
+}
+
+.history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-sm);
+  padding-bottom: var(--space-xs);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.history-title {
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.history-count {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  font-weight: 500;
+}
+
+.history-empty {
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
+  text-align: center;
+  padding: var(--space-sm) 0;
+  margin: 0;
+  font-style: italic;
+}
+
+.history-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.history-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-hover);
+  font-size: var(--font-size-xs);
+}
+
+.history-item-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.history-date {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.history-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: var(--radius-full);
+}
+
+.history-badge-success {
+  background-color: var(--badge-bg);
+  color: var(--badge-text);
+  border: 1px solid var(--badge-border);
+}
+
+.history-badge-danger {
+  background-color: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.history-badge-warning {
+  background-color: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.history-item-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.history-answered {
+  color: var(--text-secondary);
+}
+
+.history-score {
+  font-weight: 700;
+  color: var(--primary);
+}
+
 .setup-card {
   max-width: 640px;
 }

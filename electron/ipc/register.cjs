@@ -184,6 +184,26 @@ function registerIpcHandlers({ getMainWindow }) {
     await permissionsService.openCameraSettings();
     return null;
   });
+
+  // ==========================================
+  // Settings & History Domain Handlers
+  // ==========================================
+  handle(CHANNELS.SETTINGS_GET, async () => {
+    const storage = require('../services/storage.cjs');
+    const { getActiveBankSummary } = require('../services/questionBank.cjs');
+    const settings = storage.getSettings();
+    return {
+      theme: settings.theme,
+      candidate: settings.candidate,
+      activeBank: getActiveBankSummary(),
+    };
+  });
+
+  handle(CHANNELS.HISTORY_LIST, async () => {
+    const storage = require('../services/storage.cjs');
+    const sessions = storage.listSessions();
+    return sessions.slice(0, 10);
+  });
 }
 
 module.exports = {

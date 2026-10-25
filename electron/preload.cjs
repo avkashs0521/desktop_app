@@ -31,6 +31,10 @@ const CHANNELS = Object.freeze({
   PERMISSIONS_CAMERA_STATUS: 'permissions:camera-status',
   PERMISSIONS_REQUEST_CAMERA: 'permissions:request-camera',
   PERMISSIONS_OPEN_CAMERA_SETTINGS: 'permissions:open-camera-settings',
+
+  // Settings & History domain
+  SETTINGS_GET: 'settings:get',
+  HISTORY_LIST: 'history:list',
 });
 
 /**
@@ -95,5 +99,11 @@ contextBridge.exposeInMainWorld('argus', {
     cameraStatus: () => invoke(CHANNELS.PERMISSIONS_CAMERA_STATUS),
     requestCamera: () => invoke(CHANNELS.PERMISSIONS_REQUEST_CAMERA),
     openCameraSettings: () => invoke(CHANNELS.PERMISSIONS_OPEN_CAMERA_SETTINGS),
+  },
+  settings: {
+    get: () => invoke(CHANNELS.SETTINGS_GET),
+  },
+  history: {
+    list: () => invoke(CHANNELS.HISTORY_LIST),
   },
 });

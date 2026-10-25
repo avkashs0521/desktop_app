@@ -81,4 +81,10 @@ export const api = {
     requestCamera: () => (isElectron ? unwrap(window.argus.permissions.requestCamera()) : ensureDesktop()),
     openCameraSettings: () => (isElectron ? unwrap(window.argus.permissions.openCameraSettings()) : ensureDesktop()),
   },
+  settings: {
+    get: () => (isElectron ? unwrap(window.argus.settings.get()) : ensureDesktop()),
+  },
+  history: {
+    list: () => (isElectron ? unwrap(window.argus.history.list()) : ensureDesktop()),
+  },
 };

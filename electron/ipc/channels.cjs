@@ -27,6 +27,10 @@ const CHANNELS = Object.freeze({
   PERMISSIONS_CAMERA_STATUS: 'permissions:camera-status', // invoke → { status: string }
   PERMISSIONS_REQUEST_CAMERA: 'permissions:request-camera', // invoke → { status: string }
   PERMISSIONS_OPEN_CAMERA_SETTINGS: 'permissions:open-camera-settings', // invoke → void
+
+  // Settings & Persistence domain
+  SETTINGS_GET: 'settings:get', // invoke → { theme, candidate, activeBank summary }
+  HISTORY_LIST: 'history:list', // invoke → listSessions() summaries (max 10)
 });
 
 module.exports = { CHANNELS };

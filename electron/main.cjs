@@ -8,6 +8,12 @@ const { CHANNELS } = require('./ipc/channels.cjs');
 const { installPermissionHandlers } = require('./services/permissions.cjs');
 const { isTrustedUrl } = require('./core/trust.cjs');
 const { buildMenu } = require('./menu.cjs');
+const { initAutosave, flushSync } = require('./core/autosave.cjs');
+const storage = require('./services/storage.cjs');
+const questionBank = require('./services/questionBank.cjs');
+
+// Initialize debounced state autosave
+initAutosave(examStore);
 
 // 5. Single instance lock:
 // Ensure only one instance of Argus runs at any time.
@@ -104,8 +110,94 @@ app.setAboutPanelOptions({
   copyright: `© ${new Date().getFullYear()} Avkash Singh`,
 });
 
+/**
+ * Checks for any unfinished exam session (crashed or abruptly closed while in_progress).
+ * Invoked once the main application window is ready to show.
+ *
+ * Rules:
+ * 1. If no unfinished session: continue normally.
+ * 2. If question bank cannot be found by its SHA-256 hash: mark terminated with reason 'bank_missing'.
+ * 3. If time expired while app was closed (now >= endsAt): submit with reason 'time_up_while_closed'.
+ *    Comment: The clock keeps running while the app is closed (endsAt is wall-clock), so quitting cannot pause an exam.
+ * 4. If time remaining (now < endsAt): show prompt dialog:
+ *    - "Resume" -> restore session, re-enter lockdown, restart drift-free timer.
+ *    - "Submit it now" -> finish with reason 'submitted_on_resume'.
+ *
+ * @param {Electron.BrowserWindow} win
+ */
+async function checkCrashRecovery(win) {
+  const session = storage.findUnfinishedSession();
+  if (!session) {
+    return;
+  }
+
+  // Look up question bank by hash
+  const bankHash = session.bank?.hash;
+  const bankData = bankHash ? questionBank.getBankByHash(bankHash) : null;
+
+  if (!bankData) {
+    examStore.terminateSession(session, 'bank_missing');
+    await dialog.showMessageBox(win, {
+      type: 'error',
+      title: 'Exam Terminated',
+      message: 'Question bank missing',
+      detail: 'The question bank for your previous exam could not be found on disk. The session has been terminated.',
+      buttons: ['OK'],
+    });
+    return;
+  }
+
+  const now = Date.now();
+  const endsAt = session.endsAt;
+
+  // Clock kept running while closed: check if time already elapsed
+  if (now >= endsAt) {
+    examStore.restoreAndSubmit(session, 'time_up_while_closed', bankData);
+    await dialog.showMessageBox(win, {
+      type: 'info',
+      title: 'Exam Time Expired',
+      message: 'Time expired while Argus was closed',
+      detail: 'The scheduled time limit for your exam elapsed while the application was closed. Your session has been submitted automatically.',
+      buttons: ['OK'],
+    });
+    return;
+  }
+
+  // Time remaining: prompt student
+  const startedTimeStr = new Date(session.startedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const minutesLeft = Math.max(1, Math.ceil((endsAt - now) / 60000));
+  const answeredCount = Object.keys(session.answers || {}).length;
+
+  const { response } = await dialog.showMessageBox(win, {
+    type: 'question',
+    title: 'Resume Exam',
+    message: 'Resume your exam?',
+    detail: `Started at ${startedTimeStr}. ${minutesLeft} minute${minutesLeft === 1 ? '' : 's'} left. ${answeredCount} question${answeredCount === 1 ? '' : 's'} answered.`,
+    buttons: ['Resume', 'Submit it now'],
+    defaultId: 0,
+    cancelId: 1,
+  });
+
+  if (response === 0) {
+    try {
+      examStore.restore(session, bankData);
+    } catch (err) {
+      console.error('[CrashRecovery] Failed to restore session:', err);
+      examStore.terminateSession(session, 'corrupt_session');
+    }
+  } else {
+    examStore.restoreAndSubmit(session, 'submitted_on_resume', bankData);
+  }
+}
+
 // Helper to attach window event listeners including the exam close guard
 function setupWindowEvents(win) {
+  win.once('ready-to-show', () => {
+    checkCrashRecovery(win).catch((err) => {
+      console.error('[Main] Error during crash recovery check:', err);
+    });
+  });
+
   win.on('close', (event) => {
     // Intercept window close during exam to prompt for submission
     if (!allowQuit && examStore.state.phase === 'in_progress') {
@@ -148,7 +240,10 @@ app.on('before-quit', (event) => {
   if (!allowQuit && examStore.state.phase === 'in_progress') {
     event.preventDefault();
     confirmQuitDuringExam();
+    return;
   }
+  // Flush any pending debounced autosave state to disk synchronously
+  flushSync();
 });
 
 // macOS apps normally keep running with no windows, but an exam app should fully exit
@@ -158,5 +253,6 @@ app.on('window-all-closed', () => {
 
 // Clean up all resources tracked in the application lifecycle scope
 app.on('will-quit', () => {
+  flushSync();
   appScope.dispose();
 });

@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { dialog } = require('electron');
+const storage = require('./storage.cjs');
 
 // Module-level in-memory cache of the currently active question bank
 let activeBankData = null;
@@ -125,7 +126,6 @@ function validateBank(obj) {
 
 /**
  * Loads and validates the default question bank bundled with the application.
- * Called once at application startup using synchronous I/O.
  * @returns {Object} The loaded bank object
  */
 function loadDefaultBank() {
@@ -151,13 +151,116 @@ function loadDefaultBank() {
 
 /**
  * Returns the currently active question bank in memory.
+ * On startup, if settings.activeBank is set: load it, re-hash it, and use it only if
+ * the hash still matches. Otherwise fall back to the default bank and clear activeBank.
+ *
  * @returns {{ bank: Object, hash: string, source: 'default'|'imported', fileName: string }}
  */
 function getActiveBank() {
-  if (!activeBankData) {
-    loadDefaultBank();
+  if (activeBankData) {
+    return activeBankData;
   }
-  return activeBankData;
+
+  // Check persistent settings for an active bank
+  const settings = storage.getSettings();
+  if (settings && settings.activeBank && settings.activeBank.hash) {
+    const bankRecord = settings.activeBank;
+    const targetFile = storage.getBankPath(bankRecord.hash);
+
+    if (fs.existsSync(targetFile)) {
+      try {
+        const raw = fs.readFileSync(targetFile, 'utf8');
+        const computedHash = hashText(raw);
+
+        if (computedHash === bankRecord.hash) {
+          const parsed = JSON.parse(raw);
+          const { ok } = validateBank(parsed);
+          if (ok) {
+            activeBankData = {
+              bank: parsed,
+              hash: computedHash,
+              source: 'imported',
+              fileName: bankRecord.fileName || `${bankRecord.hash.slice(0, 8)}.json`,
+            };
+            return activeBankData;
+          }
+        }
+      } catch (err) {
+        console.warn('[QuestionBank] Failed to load persisted active bank:', err);
+      }
+    }
+
+    // Hash mismatch, file missing, or invalid -> fall back and clear setting
+    console.warn('[QuestionBank] Persisted bank hash mismatch or missing file. Falling back to default bank.');
+    storage.updateSettingsSync({ activeBank: null });
+  }
+
+  return loadDefaultBank();
+}
+
+/**
+ * Directly updates the active bank data in memory (e.g. during crash recovery).
+ * @param {Object} bankData
+ */
+function setActiveBankData(bankData) {
+  if (bankData && bankData.bank && bankData.hash) {
+    activeBankData = bankData;
+  }
+}
+
+/**
+ * Looks up a question bank by its SHA-256 hash.
+ * 1. Checks current activeBankData.
+ * 2. Checks bundled default bank.
+ * 3. Checks storage banks/<hash>.json.
+ *
+ * @param {string} hash
+ * @returns {{ bank: Object, hash: string, source: string, fileName: string }|null}
+ */
+function getBankByHash(hash) {
+  if (!hash || typeof hash !== 'string') {
+    return null;
+  }
+
+  // 1. In-memory active bank
+  if (activeBankData && activeBankData.hash === hash) {
+    return activeBankData;
+  }
+
+  // 2. Bundled default bank
+  try {
+    const defaultBank = loadDefaultBank();
+    if (defaultBank && defaultBank.hash === hash) {
+      return defaultBank;
+    }
+  } catch (err) {
+    console.warn('[QuestionBank] Failed checking default bank by hash:', err);
+  }
+
+  // 3. Stored bank file in userData/banks/<hash>.json
+  const filePath = storage.getBankPath(hash);
+  if (fs.existsSync(filePath)) {
+    try {
+      const raw = fs.readFileSync(filePath, 'utf8');
+      const computedHash = hashText(raw);
+      if (computedHash === hash) {
+        const parsed = JSON.parse(raw);
+        const { ok } = validateBank(parsed);
+        if (ok) {
+          return {
+            bank: parsed,
+            hash: computedHash,
+            source: 'imported',
+            fileName: `${hash.slice(0, 8)}.json`,
+          };
+        }
+      }
+    } catch (err) {
+      console.warn(`[QuestionBank] Error loading bank ${hash} from disk:`, err);
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -190,6 +293,9 @@ function toPublicQuestions(bank, order) {
 /**
  * Prompts the examiner to select and import a question bank JSON file.
  * Allowed only when the exam state machine is in 'welcome' or 'setup'.
+ * After a successful import:
+ * - Copies the validated JSON to banks/<sha256>.json.
+ * - Updates settings.activeBank = { path, hash, fileName }.
  *
  * @param {Electron.BrowserWindow} win - Parent window for the file dialog
  * @returns {Promise<{ ok: boolean, title?: string, count?: number, hashShort?: string, canceled?: boolean, errors?: string[] }>}
@@ -250,13 +356,25 @@ async function importBank(win) {
     return { ok: false, errors };
   }
 
-  // Valid bank: compute hash and set as the active bank
+  // Valid bank: compute hash and persist to storage
   const hash = hashText(raw);
+  const fileName = path.basename(filePath);
+  const savedPath = storage.saveBank(hash, parsed);
+
+  // Update persistent settings
+  await storage.updateSettings({
+    activeBank: {
+      path: savedPath,
+      hash,
+      fileName,
+    },
+  });
+
   activeBankData = {
     bank: parsed,
     hash,
     source: 'imported',
-    fileName: path.basename(filePath),
+    fileName,
   };
 
   // Notify any store listeners of updated bank metadata
@@ -291,6 +409,8 @@ module.exports = {
   loadDefaultBank,
   getActiveBank,
   getActiveBankSummary,
+  getBankByHash,
+  setActiveBankData,
   toPublicQuestions,
   importBank,
 };

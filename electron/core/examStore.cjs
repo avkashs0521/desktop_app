@@ -6,7 +6,8 @@ const { config } = require('./config.cjs');
 const { createScope } = require('./lifecycle.cjs');
 const examTimer = require('../services/examTimer.cjs');
 const lockdown = require('../services/lockdown.cjs');
-const { getActiveBank } = require('../services/questionBank.cjs');
+const { getActiveBank, setActiveBankData } = require('../services/questionBank.cjs');
+const storage = require('../services/storage.cjs');
 
 // Window getter hook: allows examStore dialogs to attach to the main BrowserWindow
 let _getMainWindow = null;
@@ -189,6 +190,10 @@ class ExamStore extends EventEmitter {
           rollNo: payload.rollNo.trim(),
         };
         this.state.phase = PHASES.SETUP;
+        // Persist candidate in settings so welcome form is prefilled on next launch
+        storage.updateSettings({ candidate: this.state.candidate }).catch((err) => {
+          console.warn('[ExamStore] Failed to prefill candidate into settings:', err);
+        });
         break;
       }
 
@@ -434,6 +439,128 @@ class ExamStore extends EventEmitter {
       totalMarks,
       earnedMarks,
     };
+  }
+
+  /**
+   * Restores an in-progress session after app relaunch or crash.
+   * Validates the saved object's shape before accepting it.
+   *
+   * Comment: The clock keeps running while the app is closed (endsAt is wall-clock),
+   * so quitting cannot pause an exam.
+   *
+   * @param {Object} saved - Persisted session state
+   * @param {Object} [bankData] - Validated question bank matching session bank.hash
+   * @returns {Object} Restored public state
+   */
+  restore(saved, bankData) {
+    if (
+      !saved ||
+      typeof saved !== 'object' ||
+      typeof saved.sessionId !== 'string' ||
+      typeof saved.startedAt !== 'number' ||
+      typeof saved.endsAt !== 'number' ||
+      !saved.bank ||
+      typeof saved.bank.hash !== 'string' ||
+      !Array.isArray(saved.questionOrder) ||
+      typeof saved.answers !== 'object'
+    ) {
+      throw new ExamError('CORRUPT_SESSION', 'Saved session state has an invalid shape.');
+    }
+
+    if (bankData) {
+      setActiveBankData(bankData);
+    }
+
+    // Set state back into in_progress, but force camera re-check
+    this.state = {
+      ...saved,
+      phase: PHASES.IN_PROGRESS,
+      checks: {
+        ...(saved.checks || {}),
+        camera: false, // Force re-activation in renderer
+      },
+      review: Array.isArray(saved.review) ? [...saved.review] : [],
+      violations: Array.isArray(saved.violations) ? [...saved.violations] : [],
+      snapshotCount: saved.snapshotCount || 0,
+      result: null,
+      submittedAt: null,
+      submitReason: null,
+    };
+
+    // Recreate lifecycle scope for resumed session
+    if (this.examScope) {
+      this.examScope.dispose();
+    }
+    this.examScope = createScope('examSession');
+
+    // Re-enter lockdown
+    const win = getWindow();
+    if (win) {
+      lockdown.enter(win, this.examScope);
+    }
+
+    // Restart timer with the saved endsAt
+    examTimer.start(this.state.endsAt, this.examScope, () => {
+      this.dispatch('TIME_UP', { source: 'main' }).catch((err) => {
+        console.error('[ExamStore] Error executing TIME_UP on resumed exam:', err);
+      });
+    });
+
+    this.emit('phase', this.state.phase);
+    this.emit('change', this.getPublicState());
+    return this.getPublicState();
+  }
+
+  /**
+   * Submits a recovered session without continuing the exam.
+   * Used when candidate chooses "Submit it now" on crash recovery, or when
+   * time expired while the app was closed (reason: 'time_up_while_closed').
+   *
+   * @param {Object} saved - Persisted session state
+   * @param {string} reason - Submit reason ('submitted_on_resume' | 'time_up_while_closed')
+   * @param {Object} [bankData]
+   * @returns {Object} Public state
+   */
+  restoreAndSubmit(saved, reason, bankData) {
+    if (bankData) {
+      setActiveBankData(bankData);
+    }
+
+    this.state = {
+      ...saved,
+      phase: PHASES.SUBMITTED,
+      submittedAt: Date.now(),
+      submitReason: reason,
+    };
+
+    this.state.result = this._calculateResult();
+    storage.saveSessionSync(this.state);
+
+    this.emit('phase', this.state.phase);
+    this.emit('change', this.getPublicState());
+    return this.getPublicState();
+  }
+
+  /**
+   * Marks a session terminated when its question bank is missing or unrecoverable.
+   * @param {Object} saved - Persisted session state
+   * @param {string} reason - Termination reason ('bank_missing')
+   * @returns {Object} Public state
+   */
+  terminateSession(saved, reason) {
+    this.state = {
+      ...saved,
+      phase: PHASES.TERMINATED,
+      submittedAt: Date.now(),
+      submitReason: reason,
+      result: null,
+    };
+
+    storage.saveSessionSync(this.state);
+
+    this.emit('phase', this.state.phase);
+    this.emit('change', this.getPublicState());
+    return this.getPublicState();
   }
 }
 
